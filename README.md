@@ -23,7 +23,7 @@
 GitHub Actions / Local Cron
           |
     +-----v------------------+
-    | infra-job-helper App   |
+    | daily-tick-runner App   |
     |  - Selenium login & click
     |  - Python logging      |
     +-----+------------------+
@@ -44,7 +44,7 @@ GitHub Actions / Local Cron
 ## 📁 專案資料夾結構建議
 
 ```
-infra-job-helper/
+daily-tick-runner/
 ├── Dockerfile
 ├── docker-compose.yml
 ├── .env.example
