@@ -23,7 +23,7 @@ export default defineConfig({
             name: 'chromium-smoke',
             use: { ...devices['Desktop Chrome'], storageState: 'playwright/.auth/state.json' },
             dependencies: ['setup'],
-            grep: /@no-click/,              // 只跑標了 @no-click 的測試
+            grep: /@smoke/,              // 只跑標了 @no-click 的測試
         },
 
         // 真的點擊（本機手動要跑時才指定）
@@ -32,6 +32,13 @@ export default defineConfig({
             use: { ...devices['Desktop Chrome'], storageState: 'playwright/.auth/state.json' },
             dependencies: ['setup'],
             grep: /@click/,
+        },
+
+        // 傳送通知（Discord/LINE）
+        {
+            name: 'notify',
+            grep: /@notify/,
+            use: { ...devices['Desktop Chrome'] }
         },
     ],
     // 其餘通用設定（timezoneId/locale/geolocation 等）放全域 use 沒問題

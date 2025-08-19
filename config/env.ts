@@ -19,5 +19,8 @@ export const env = {
     lon: Number(process.env.AOA_LON || 121.5654),
     timezoneId: process.env.TZ || 'Asia/Taipei',
     locale: process.env.LOCALE || 'zh-TW',
+    DISCORD_WEBHOOK_URL: 'https://discord.com/api/webhooks/1407269714157371433/pKYGf6yuY8KlSUZ3lVH31tAQRrxb1fPjGJkGr5BsGuZDoEZKWpVOZq9hxjkqZaYoUuoS',
+    LINE_CHANNEL_ACCESS_TOKEN: '252332b8cf418186fd47e3f53127d932',
+    LINE_USER_ID: '2007955261',
 };
 

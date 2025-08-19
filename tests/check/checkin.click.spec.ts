@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
-import { AttendancePage } from '../automation/pages/AttendancePage';
+import { AttendancePage } from '../../automation/pages/AttendancePage';
+import { notifyDiscord } from '../../automation/notify/discord';
+import { notifyLinePush } from '../../automation/notify/line';
 
 test('簽到(真的點)', { tag: '@click' }, async ({ page }, testInfo) => {
     const attendance = new AttendancePage(page);
@@ -27,5 +29,12 @@ test('簽到(真的點)', { tag: '@click' }, async ({ page }, testInfo) => {
         // 關閉彈窗
         await page.getByRole('button', { name: '確定' }).click();
         await expect(alert).toBeHidden();
+    });
+
+    await test.step('發送通知（Discord / LINE）', async () => {
+        const nowTW = new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' });
+        const msg = `✅ 簽到成功 ${nowTW}`;
+        if (process.env.DISCORD_WEBHOOK_URL) await notifyDiscord(page.request, msg, testInfo.outputPath('checkin-fullpage.png'));
+        // if (process.env.LINE_CHANNEL_ACCESS_TOKEN && process.env.LINE_USER_ID) await notifyLinePush(page.request, msg);
     });
 });
