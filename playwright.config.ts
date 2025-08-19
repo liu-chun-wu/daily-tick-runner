@@ -15,7 +15,7 @@ export default defineConfig({
         video: 'retain-on-failure',
     },
     projects: [
-        // 1) setup：登入產出 storageState，不要讀取 storageState
+        // setup：登入產出 storageState，不要讀取 storageState
         { name: 'setup', testDir: './tests/setup', use: { storageState: undefined } },
 
         // 只跑 "不點擊" 測試（預設專案；給 CI/排程）
