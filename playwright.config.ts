@@ -18,14 +18,20 @@ export default defineConfig({
         // 1) setup：登入產出 storageState，不要讀取 storageState
         { name: 'setup', testDir: './tests/setup', use: { storageState: undefined } },
 
-        // 2) 實際測試：依賴 setup，這裡才讀取 storageState
+        // 只跑 "不點擊" 測試（預設專案；給 CI/排程）
         {
-            name: 'chromium',
-            use: {
-                ...devices['Desktop Chrome'],
-                storageState: 'playwright/.auth/state.json',
-            },
+            name: 'chromium-smoke',
+            use: { ...devices['Desktop Chrome'], storageState: 'playwright/.auth/state.json' },
             dependencies: ['setup'],
+            grep: /@no-click/,              // 只跑標了 @no-click 的測試
+        },
+
+        // 真的點擊（本機手動要跑時才指定）
+        {
+            name: 'chromium-click',
+            use: { ...devices['Desktop Chrome'], storageState: 'playwright/.auth/state.json' },
+            dependencies: ['setup'],
+            grep: /@click/,
         },
     ],
     // 其餘通用設定（timezoneId/locale/geolocation 等）放全域 use 沒問題
