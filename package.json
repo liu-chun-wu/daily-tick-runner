@@ -1,0 +1,28 @@
+{
+  "name": "daily-tick-runner",
+  "version": "1.0.0",
+  "description": "**daily-tick-runner**",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/liu-chun-wu/daily-tick-runner.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/liu-chun-wu/daily-tick-runner/issues"
+  },
+  "homepage": "https://github.com/liu-chun-wu/daily-tick-runner#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.54.2",
+    "@types/node": "^24.2.1"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.1"
+  }
+}

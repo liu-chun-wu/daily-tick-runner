@@ -1,0 +1,44 @@
+name: Auto Check-in / out
+on:
+  schedule:
+    - cron: '40 0 * * 1-5'  # 00:40 UTC（= 台北 08:40）
+    - cron: '0 10 * * 1-5'  # 10:00 UTC（= 台北 18:00）
+  workflow_dispatch: {}
+jobs:
+  run:
+    container: mcr.microsoft.com/playwright:v1.54.0-noble
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      BASE_URL: ${{ secrets.BASE_URL }}
+      COMPANY_CODE: ${{ secrets.COMPANY_CODE }}
+      AOA_USERNAME: ${{ secrets.AOA_USERNAME }}
+      AOA_PASSWORD: ${{ secrets.AOA_PASSWORD }}
+      AOA_LAT: ${{ secrets.AOA_LAT }}
+      AOA_LON: ${{ secrets.AOA_LON }}
+      TZ: Asia/Taipei
+      LOCALE: zh-TW
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 'lts/*' }
+      - run: npm ci
+      - name: Install browsers & deps
+        run: npx playwright install --with-deps
+      - name: Auth setup
+        run: npx playwright test --project=setup
+      - name: Run check-in or out
+        run: |
+          HOUR=$(date -u +'%H'); MIN=$(date -u +'%M')
+          if [ "$HOUR:$MIN" = "00:40" ]; then
+            npx playwright test tests/checkin.spec.ts
+          else
+            npx playwright test tests/checkout.spec.ts
+          fi
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report
+          retention-days: 14
