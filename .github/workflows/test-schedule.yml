@@ -63,7 +63,17 @@ jobs:
           echo "🔍 開始環境檢查和登入設置..."
           npx playwright test --project=setup --workers=1
 
-      - name: 🎯 執行真實打卡操作
+      - name: 🎯 執行真實打卡操作（含重試機制）
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 15
+          max_attempts: 3
+          retry_wait_seconds: 60
+          retry_on: error
+          command: |
+            echo "🎯 開始執行真實打卡操作..."
+            echo "⏰ 執行時間: $(date -u '+%Y-%m-%d %H:%M:%S UTC') ($(TZ='Asia/Taipei' date '+%Y-%m-%d %H:%M:%S %Z'))"
+            npx playwright test tests/check/checkin.click.spec.ts --project=chromium-click --workers=1 --trace on
         env:
           BASE_URL: ${{ vars.BASE_URL || 'https://erpline.aoacloud.com.tw/' }}
           COMPANY_CODE: ${{ vars.COMPANY_CODE ||'CYBERBIZ'}}
@@ -77,10 +87,6 @@ jobs:
           LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
           LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
           LOG_LEVEL: ${{ github.event.inputs.log_level || 'INFO' }}
-        run: |
-          echo "🎯 開始執行真實打卡操作..."
-          echo "⏰ 執行時間: $(date -u '+%Y-%m-%d %H:%M:%S UTC') ($(TZ='Asia/Taipei' date '+%Y-%m-%d %H:%M:%S %Z'))"
-          npx playwright test tests/check/checkin.click.spec.ts --project=chromium-click --workers=1 --trace on
 
       - name: 📤 Upload test results (if failed)
         uses: actions/upload-artifact@v4

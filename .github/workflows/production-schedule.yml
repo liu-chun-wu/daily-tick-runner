@@ -106,8 +106,18 @@ jobs:
           echo "🔍 開始環境檢查和登入設置..."
           npx playwright test --project=setup --workers=1
 
-      - name: ✅ 執行簽到
+      - name: ✅ 執行簽到（含重試機制）
         if: steps.determine-action.outputs.action_type == 'checkin' || steps.determine-action.outputs.action_type == 'both'
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 15
+          max_attempts: 3
+          retry_wait_seconds: 60
+          retry_on: error
+          command: |
+            echo "✅ 開始執行簽到..."
+            echo "⏰ 台北時間: ${{ steps.determine-action.outputs.taipei_time }}"
+            npx playwright test tests/check/checkin.click.spec.ts --project=chromium-click --workers=1 --trace=on
         env:
           BASE_URL: ${{ vars.BASE_URL || 'https://erpline.aoacloud.com.tw/' }}
           COMPANY_CODE: ${{ vars.COMPANY_CODE ||'CYBERBIZ'}}
@@ -121,10 +131,6 @@ jobs:
           LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
           LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
           LOG_LEVEL: ${{ github.event.inputs.log_level || 'INFO' }}
-        run: |
-          echo "✅ 開始執行簽到..."
-          echo "⏰ 台北時間: ${{ steps.determine-action.outputs.taipei_time }}"
-          npx playwright test tests/check/checkin.click.spec.ts --project=chromium-click --workers=1 --trace=on
 
       - name: ⏰ 簽到簽退間隔 (如果需要執行兩者)
         if: steps.determine-action.outputs.action_type == 'both'
@@ -132,8 +138,18 @@ jobs:
           echo "⏰ 等待 30 秒後執行簽退..."
           sleep 30
 
-      - name: ❌ 執行簽退
+      - name: ❌ 執行簽退（含重試機制）
         if: steps.determine-action.outputs.action_type == 'checkout' || steps.determine-action.outputs.action_type == 'both'
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 15
+          max_attempts: 3
+          retry_wait_seconds: 60
+          retry_on: error
+          command: |
+            echo "❌ 開始執行簽退..."
+            echo "⏰ 台北時間: $(TZ='Asia/Taipei' date '+%H:%M')"
+            npx playwright test tests/check/checkout.click.spec.ts --project=chromium-click --workers=1 --trace=on
         env:
           BASE_URL: ${{ vars.BASE_URL || 'https://erpline.aoacloud.com.tw/' }}
           COMPANY_CODE: ${{ vars.COMPANY_CODE ||'CYBERBIZ'}}
@@ -147,10 +163,6 @@ jobs:
           LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
           LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
           LOG_LEVEL: ${{ github.event.inputs.log_level || 'INFO' }}
-        run: |
-          echo "❌ 開始執行簽退..."  
-          echo "⏰ 台北時間: $(TZ='Asia/Taipei' date '+%H:%M')"
-          npx playwright test tests/check/checkout.click.spec.ts --project=chromium-click --workers=1 --trace=on
 
       - name: 📤 Upload test results (if failed)
         uses: actions/upload-artifact@v4
