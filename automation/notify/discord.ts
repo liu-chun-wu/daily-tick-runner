@@ -1,7 +1,7 @@
 // automation/notify/discord.ts
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { request, FormData } from 'undici';
+import { request } from 'undici';
 import { env } from '../../config/env';
 import { log } from '../utils/logger';
 import type { NotifyOpts } from './types';
@@ -17,22 +17,37 @@ export async function uploadToDiscordAndGetUrl(
 ): Promise<string> {
     const url = webhookUrl.includes('?') ? `${webhookUrl}&wait=true` : `${webhookUrl}?wait=true`;
 
-    const form = new FormData();
-    // payload_json 可同時帶文字等欄位
-    form.append(
-        'payload_json',
-        JSON.stringify({
-            content,
-            // 附件宣告（對應 files[0]）
-            attachments: [{ id: 0, filename }],
-        })
-    );
-    // 對應上面 attachments.id
-    const blob = new Blob([new Uint8Array(imageBuffer)], { type: 'image/png' });
-    // 參數名稱慣例：files[0]
-    form.append('files[0]', blob, filename);
+    const boundary = `----formdata-undici-${Math.random().toString(16)}`;
+    const payload = JSON.stringify({
+        content,
+        attachments: [{ id: 0, filename }],
+    });
 
-    const res = await request(url, { method: 'POST', body: form });
+    // Build multipart form data manually
+    const chunks: string[] = [];
+    chunks.push(`--${boundary}\r\n`);
+    chunks.push('Content-Disposition: form-data; name="payload_json"\r\n\r\n');
+    chunks.push(payload);
+    chunks.push('\r\n');
+    
+    chunks.push(`--${boundary}\r\n`);
+    chunks.push(`Content-Disposition: form-data; name="files[0]"; filename="${filename}"\r\n`);
+    chunks.push('Content-Type: image/png\r\n\r\n');
+    
+    const formData = Buffer.concat([
+        Buffer.from(chunks.join('')),
+        imageBuffer,
+        Buffer.from(`\r\n--${boundary}--\r\n`)
+    ]);
+
+    const res = await request(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        },
+        body: formData,
+    });
+    
     if (res.statusCode !== 200) {
         throw new Error(`Discord upload failed: ${res.statusCode}`);
     }
@@ -42,7 +57,7 @@ export async function uploadToDiscordAndGetUrl(
 
     const cdnUrl = msg.attachments?.[0]?.url;
     if (!cdnUrl) throw new Error('No attachment url returned from Discord');
-    return cdnUrl; // 這是簽名 CDN 連結（~24h 有效）
+    return cdnUrl;
 }
 
 export async function notifyDiscord(opts: NotifyOpts) {
@@ -61,9 +76,6 @@ export async function notifyDiscord(opts: NotifyOpts) {
         const hasPath = !!opts.screenshotPath;
 
         if (hasBuffer || hasPath) {
-            const form = new FormData();
-            form.append('payload_json', JSON.stringify(payload));
-
             const name =
                 opts.filename ??
                 (hasPath ? path.basename(opts.screenshotPath!) : 'screenshot.png');
@@ -80,11 +92,32 @@ export async function notifyDiscord(opts: NotifyOpts) {
             }
 
             if (data) {
-                // 使用 Blob 替代 File (Node.js 18+ 內建支援)
-                // 將 Buffer 轉換為 Uint8Array 以符合 BlobPart 類型
-                const blob = new Blob([new Uint8Array(data)], { type: 'image/png' });
-                form.append('files[0]', blob, name);
-                await request(url, { method: 'POST', body: form });
+                const boundary = `----formdata-undici-${Math.random().toString(16)}`;
+                
+                // Build multipart form data manually
+                const chunks: string[] = [];
+                chunks.push(`--${boundary}\r\n`);
+                chunks.push('Content-Disposition: form-data; name="payload_json"\r\n\r\n');
+                chunks.push(JSON.stringify(payload));
+                chunks.push('\r\n');
+                
+                chunks.push(`--${boundary}\r\n`);
+                chunks.push(`Content-Disposition: form-data; name="files[0]"; filename="${name}"\r\n`);
+                chunks.push('Content-Type: image/png\r\n\r\n');
+                
+                const formData = Buffer.concat([
+                    Buffer.from(chunks.join('')),
+                    data,
+                    Buffer.from(`\r\n--${boundary}--\r\n`)
+                ]);
+
+                await request(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+                    },
+                    body: formData,
+                });
                 log.notifySuccess('Discord', 'Discord');
                 return; // 成功送出就結束
             }
