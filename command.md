@@ -102,9 +102,3 @@
 [6]: https://playwright.dev/docs/running-tests?utm_source=chatgpt.com "Running and debugging tests"
 [7]: https://playwright.dev/docs/test-reporters?utm_source=chatgpt.com "Reporters"
 [8]: https://www.browserstack.com/guide/playwright-debugging?utm_source=chatgpt.com "How to start with Playwright Debugging? | BrowserStack"
-
-npx playwright test --project=chromium-smoke --headed --workers=1 --trace on
-
-npx playwright test --project=chromium-click --list
-
-npx playwright test tests/checkin.click.spec.ts --project=chromium-click --headed --workers=1 --trace on

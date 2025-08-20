@@ -1,26 +1,43 @@
 import 'dotenv/config';
 
-// export const env = {
-//     baseURL: process.env.BASE_URL!,
-//     companyCode: process.env.COMPANY_CODE!,
-//     username: process.env.AOA_USERNAME!,
-//     password: process.env.AOA_PASSWORD!,
-//     lat: Number(process.env.AOA_LAT || 25.0330),
-//     lon: Number(process.env.AOA_LON || 121.5654),
-//     timezoneId: process.env.TZ || 'Asia/Taipei',
-//     locale: process.env.LOCALE || 'zh-TW',
-// };
-export const env = {
-    baseURL: 'https://erpline.aoacloud.com.tw/',
-    companyCode: 'CYBERBIZ',
-    username: 'jeffery.liu',
-    password: 'A130608720',
-    lat: Number(process.env.AOA_LAT || 25.0330),
-    lon: Number(process.env.AOA_LON || 121.5654),
-    timezoneId: process.env.TZ || 'Asia/Taipei',
-    locale: process.env.LOCALE || 'zh-TW',
-    DISCORD_WEBHOOK_URL: 'https://discord.com/api/webhooks/1407269714157371433/pKYGf6yuY8KlSUZ3lVH31tAQRrxb1fPjGJkGr5BsGuZDoEZKWpVOZq9hxjkqZaYoUuoS',
-    LINE_CHANNEL_ACCESS_TOKEN: '252332b8cf418186fd47e3f53127d932',
-    LINE_USER_ID: '2007955261',
-};
+/**
+ * 小工具：檢查環境變數是否存在，沒有就直接 throw
+ */
+function requireEnv(name: string): string {
+    const value = process.env[name];
+    if (!value) {
+        throw new Error(`❌ Missing environment variable: ${name}`);
+    }
+    return value;
+}
 
+/**
+ * 可選的環境變數（不存在時回傳 undefined）
+ */
+function optionalEnv(name: string): string | undefined {
+    return process.env[name];
+}
+
+/**
+ * 匯出環境變數集合
+ */
+export const env = {
+    // 必要的環境變數
+    baseURL: requireEnv('BASE_URL'),
+    companyCode: requireEnv('COMPANY_CODE'),
+    username: requireEnv('AOA_USERNAME'),
+    password: requireEnv('AOA_PASSWORD'),
+    lat: Number(requireEnv('AOA_LAT')),
+    lon: Number(requireEnv('AOA_LON')),
+    timezoneId: requireEnv('TZ'),
+    locale: requireEnv('LOCALE'),
+    
+    // 通知相關（可選）
+    discordWebhookUrl: optionalEnv('DISCORD_WEBHOOK_URL'),
+    lineChannelAccessToken: optionalEnv('LINE_CHANNEL_ACCESS_TOKEN'),
+    lineUserId: optionalEnv('LINE_USER_ID'),
+    
+    // 測試相關（可選）
+    notifyTestImage: optionalEnv('NOTIFY_TEST_IMAGE'),
+    ci: optionalEnv('CI'),
+};

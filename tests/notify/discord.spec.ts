@@ -1,11 +1,12 @@
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs/promises';
+import { env } from '../../config/env';
 
 test.describe('Discord webhook smoke @notify', () => {
-    test.skip(!process.env.DISCORD_WEBHOOK_URL, 'Set DISCORD_WEBHOOK_URL');
+    test.skip(!env.discordWebhookUrl, 'Set DISCORD_WEBHOOK_URL');
 
     test('text-only webhook message', async ({ request }) => {
-        const base = process.env.DISCORD_WEBHOOK_URL!;
+        const base = env.discordWebhookUrl!;
         const url = base.includes('?') ? `${base}&wait=true` : `${base}?wait=true`; // 拿到 200 + message 物件
         const content = `🧪 Discord 通知測試 ${new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })}`;
 
@@ -22,10 +23,10 @@ test.describe('Discord webhook smoke @notify', () => {
     });
 
     test('optional: webhook with image (multipart)', async ({ request }) => {
-        test.skip(!process.env.NOTIFY_TEST_IMAGE, 'Set NOTIFY_TEST_IMAGE to send a file');
-        const base = process.env.DISCORD_WEBHOOK_URL!;
+        test.skip(!env.notifyTestImage, 'Set NOTIFY_TEST_IMAGE to send a file');
+        const base = env.discordWebhookUrl!;
         const url = base.includes('?') ? `${base}&wait=true` : `${base}?wait=true`;
-        const buffer = await fs.readFile(process.env.NOTIFY_TEST_IMAGE!);
+        const buffer = await fs.readFile(env.notifyTestImage!);
         const content = `🧪 Discord 附圖測試 ${new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })}`;
 
         const res = await test.step('POST multipart (payload_json + files[0])', async () => {

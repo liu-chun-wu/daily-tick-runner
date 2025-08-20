@@ -24,10 +24,22 @@ export async function waitForAttendanceReady(page: Page) {
     });
 }
 
-/** 整頁截圖 + 附到報表；回傳輸出檔路徑 */
+/** 整頁截圖並回傳 Buffer（純截圖，不處理儲存） */
+export async function captureFullPageScreenshot(page: Page): Promise<Buffer> {
+    return await page.screenshot({ fullPage: true });
+}
+
+/** 整頁截圖 + 附到報表；回傳 Buffer 與輸出路徑 */
 export async function fullPageScreenshotStable(page: Page, testInfo: TestInfo, name: string) {
-    const outPath = testInfo.outputPath(`${name}.png`);
-    await page.screenshot({ path: outPath, fullPage: true });        // 整頁截圖 
-    await testInfo.attach(`${name}.png`, { path: outPath, contentType: 'image/png' }); // 報表附件 
-    return outPath;
+    // 截圖取得 Buffer
+    const screenshotBuffer = await captureFullPageScreenshot(page);
+    
+    // 儲存到檔案
+    const outPath = testInfo.outputPath(`${name}`);
+    await page.screenshot({ path: outPath, fullPage: true });
+    
+    // 附加到測試報表
+    await testInfo.attach(name, { path: outPath, contentType: 'image/png' });
+    
+    return { screenshotBuffer, outPath };
 }
