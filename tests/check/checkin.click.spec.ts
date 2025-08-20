@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { AttendancePage } from '../../automation/pages/AttendancePage';
-import { captureFullPageScreenshot } from '../../automation/utils/stableScreenshot';
+import { waitForAttendanceReady, captureFullPageScreenshot } from '../../automation/utils/stableScreenshot';
 import { notifyDiscord } from '../../automation/notify/discord';
 import { notifyLinePush } from '../../automation/notify/line';
 import { env } from '../../config/env';
@@ -17,6 +17,10 @@ test('簽到(真的點)', { tag: '@click' }, async ({ page }, testInfo) => {
         await attendance.checkIn();
     });
 
+    await test.step('等待頁面渲染完成', async () => {
+        await waitForAttendanceReady(page);
+    });
+
     await test.step('驗證打卡成功彈窗', async () => {
         const alert = page.locator('.alert-wrapper');
         await expect(alert).toBeVisible();
@@ -27,7 +31,7 @@ test('簽到(真的點)', { tag: '@click' }, async ({ page }, testInfo) => {
     const filename = 'checkin-click-fullpage.png';
     let screenshotBuffer: Buffer | undefined;
     let screenshotPath: string | undefined;
-    
+
     await test.step('撷取成功狀態截圖', async () => {
         screenshotBuffer = await captureFullPageScreenshot(page);
         screenshotPath = testInfo.outputPath(filename);
@@ -44,7 +48,7 @@ test('簽到(真的點)', { tag: '@click' }, async ({ page }, testInfo) => {
         const nowTW = new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' });
         const location = `📍 ${getEnvLocationName(env)}`;
         const message = `✅ 簽到成功\n🕒 ${nowTW}\n${location}`;
-        
+
         await Promise.all([
             notifyDiscord({ message, screenshotBuffer, filename, screenshotPath }),
             // notifyLinePush({ message, screenshotBuffer, filename, screenshotPath }),
