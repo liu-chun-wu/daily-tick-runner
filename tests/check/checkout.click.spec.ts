@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { AttendancePage } from '../../automation/pages/AttendancePage';
 import { waitForAttendanceReady, captureFullPageScreenshot } from '../../automation/utils/stableScreenshot';
 import { notifyDiscord } from '../../automation/notify/discord';
-import { notifyLinePush } from '../../automation/notify/line';
+import { notifyLine } from '../../automation/notify/line';
 import { env } from '../../config/env';
 import { getEnvLocationName } from '../../automation/utils/location';
 
@@ -51,7 +51,7 @@ test('簽退(真的點)', { tag: '@click' }, async ({ page }, testInfo) => {
 
         await Promise.all([
             notifyDiscord({ message, screenshotBuffer, filename, screenshotPath }),
-            notifyLinePush({ message, screenshotBuffer, filename, screenshotPath }),
+            notifyLine({ message, screenshotBuffer, filename, screenshotPath }),
         ]);
     });
 });

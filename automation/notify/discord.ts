@@ -5,6 +5,45 @@ import { request, FormData } from 'undici';
 import { env } from '../../config/env';
 import type { NotifyOpts } from './types';
 
+/**
+ * 上傳圖片到 Discord 並取得 CDN URL（約 24小時有效）
+ */
+export async function uploadToDiscordAndGetUrl(
+    webhookUrl: string,
+    imageBuffer: Buffer,
+    filename = 'screenshot.png',
+    content = 'Smoke 截圖'
+): Promise<string> {
+    const url = webhookUrl.includes('?') ? `${webhookUrl}&wait=true` : `${webhookUrl}?wait=true`;
+
+    const form = new FormData();
+    // payload_json 可同時帶文字等欄位
+    form.append(
+        'payload_json',
+        JSON.stringify({
+            content,
+            // 附件宣告（對應 files[0]）
+            attachments: [{ id: 0, filename }],
+        })
+    );
+    // 對應上面 attachments.id
+    const blob = new Blob([new Uint8Array(imageBuffer)], { type: 'image/png' });
+    // 參數名稱慣例：files[0]
+    form.append('files[0]', blob, filename);
+
+    const res = await request(url, { method: 'POST', body: form });
+    if (res.statusCode !== 200) {
+        throw new Error(`Discord upload failed: ${res.statusCode}`);
+    }
+    const msg = await res.body.json() as {
+        attachments?: Array<{ url: string }>;
+    };
+
+    const cdnUrl = msg.attachments?.[0]?.url;
+    if (!cdnUrl) throw new Error('No attachment url returned from Discord');
+    return cdnUrl; // 這是簽名 CDN 連結（~24h 有效）
+}
+
 export async function notifyDiscord(opts: NotifyOpts) {
     const url = env.discordWebhookUrl;
     if (!url) return;
