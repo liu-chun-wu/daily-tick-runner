@@ -1,7 +1,4 @@
-name: 正式排程 - 自動打卡 (暫時停用)
-
-# 🚨 注意：此 workflow 目前已停用
-# 要啟用時，請取消下方 schedule 的註解並停用 test-schedule.yml
+name: 正式排程 - 自動打卡 
 
 on:
   # 正式排程時間（暫時註解）
