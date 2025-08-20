@@ -40,7 +40,7 @@ test('簽到頁可見(不點)', { tag: '@smoke' }, async ({ page }, testInfo) =>
 
         await Promise.all([
             notifyDiscord({ message, screenshotBuffer, filename, screenshotPath }),
-            // notifyLinePush({ message, screenshotBuffer, filename, screenshotPath }),
+            notifyLinePush({ message, screenshotBuffer, filename, screenshotPath }),
         ]);
     });
 });

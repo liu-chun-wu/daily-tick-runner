@@ -51,7 +51,7 @@ test('簽到(真的點)', { tag: '@click' }, async ({ page }, testInfo) => {
 
         await Promise.all([
             notifyDiscord({ message, screenshotBuffer, filename, screenshotPath }),
-            // notifyLinePush({ message, screenshotBuffer, filename, screenshotPath }),
+            notifyLinePush({ message, screenshotBuffer, filename, screenshotPath }),
         ]);
     });
 });

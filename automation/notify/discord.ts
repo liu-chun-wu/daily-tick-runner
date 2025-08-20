@@ -3,13 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { request, FormData } from 'undici';
 import { env } from '../../config/env';
-
-type NotifyOpts = {
-    message: string;
-    filename?: string;
-    screenshotBuffer?: Buffer;
-    screenshotPath?: string; // 後備：從檔案讀
-};
+import type { NotifyOpts } from './types';
 
 export async function notifyDiscord(opts: NotifyOpts) {
     const url = env.discordWebhookUrl;
