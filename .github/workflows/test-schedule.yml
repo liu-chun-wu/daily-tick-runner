@@ -61,7 +61,7 @@ jobs:
       - name: 🎯 執行真實打卡操作
         env:
           BASE_URL: ${{ vars.BASE_URL || 'https://erpline.aoacloud.com.tw/' }}
-          COMPANY_CODE: ${{ vars.COMPANY_CODE }}
+          COMPANY_CODE: ${{ vars.COMPANY_CODE ||'CYBERBIZ'}}
           AOA_USERNAME: ${{ secrets.AOA_USERNAME }}
           AOA_PASSWORD: ${{ secrets.AOA_PASSWORD }}
           AOA_LAT: ${{ vars.AOA_LAT || '25.0330' }}
