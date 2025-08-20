@@ -1,9 +1,9 @@
 name: 測試排程 - 自動打卡
 
 on:
-  schedule:
-    # 每5分鐘執行一次（測試階段）
-    - cron: '*/5 * * * *'
+  # schedule:
+  #   # 每5分鐘執行一次（測試階段）
+  #   - cron: '*/5 * * * *'
   
   # 允許手動觸發（方便調試）
   workflow_dispatch:

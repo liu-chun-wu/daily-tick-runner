@@ -5,11 +5,11 @@ name: 正式排程 - 自動打卡 (暫時停用)
 
 on:
   # 正式排程時間（暫時註解）
-  # schedule:
-  #   # 週一到週五 早上 8:30 (UTC 23:30) - 簽到時間
-  #   - cron: '30 23 * * 1-5'
-  #   # 週一到週五 下午 17:30 (UTC 08:30) - 簽退時間  
-  #   - cron: '30 8 * * 1-5'
+  schedule:
+    # 週一到週五 早上 8:30 (UTC 00:30) - 簽到時間
+    - cron: '30 0 * * 1-5'
+    # 週一到週五 下午 18:00 (UTC 10:00) - 簽退時間  
+    - cron: '0 10 * * 1-5'
   
   # 允許手動觸發
   workflow_dispatch:
@@ -55,6 +55,11 @@ jobs:
       - name: 🎭 Install Playwright browsers
         run: npx playwright install chromium
 
+      - name: 🔤 Install Chinese fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fonts-noto-cjk fonts-wqy-zenhei
+
       - name: 🕐 判斷執行時機
         id: determine-action
         run: |
@@ -89,11 +94,11 @@ jobs:
       - name: 🔍 Environment check and login setup
         env:
           BASE_URL: ${{ vars.BASE_URL || 'https://erpline.aoacloud.com.tw/' }}
-          COMPANY_CODE: ${{ vars.COMPANY_CODE }}
+          COMPANY_CODE: ${{ vars.COMPANY_CODE ||'CYBERBIZ'}}
           AOA_USERNAME: ${{ secrets.AOA_USERNAME }}
           AOA_PASSWORD: ${{ secrets.AOA_PASSWORD }}
-          AOA_LAT: ${{ vars.AOA_LAT || '25.0330' }}
-          AOA_LON: ${{ vars.AOA_LON || '121.5654' }}
+          AOA_LAT: ${{ vars.AOA_LAT || '25.080869' }}
+          AOA_LON: ${{ vars.AOA_LON || '121.569862' }}
           TZ: ${{ vars.TZ || 'Asia/Taipei' }}
           LOCALE: ${{ vars.LOCALE || 'zh-TW' }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
@@ -108,11 +113,11 @@ jobs:
         if: steps.determine-action.outputs.action_type == 'checkin' || steps.determine-action.outputs.action_type == 'both'
         env:
           BASE_URL: ${{ vars.BASE_URL || 'https://erpline.aoacloud.com.tw/' }}
-          COMPANY_CODE: ${{ vars.COMPANY_CODE }}
+          COMPANY_CODE: ${{ vars.COMPANY_CODE ||'CYBERBIZ'}}
           AOA_USERNAME: ${{ secrets.AOA_USERNAME }}
           AOA_PASSWORD: ${{ secrets.AOA_PASSWORD }}
-          AOA_LAT: ${{ vars.AOA_LAT || '25.0330' }}
-          AOA_LON: ${{ vars.AOA_LON || '121.5654' }}
+          AOA_LAT: ${{ vars.AOA_LAT || '25.080869' }}
+          AOA_LON: ${{ vars.AOA_LON || '121.569862' }}
           TZ: ${{ vars.TZ || 'Asia/Taipei' }}
           LOCALE: ${{ vars.LOCALE || 'zh-TW' }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
@@ -134,11 +139,11 @@ jobs:
         if: steps.determine-action.outputs.action_type == 'checkout' || steps.determine-action.outputs.action_type == 'both'
         env:
           BASE_URL: ${{ vars.BASE_URL || 'https://erpline.aoacloud.com.tw/' }}
-          COMPANY_CODE: ${{ vars.COMPANY_CODE }}
+          COMPANY_CODE: ${{ vars.COMPANY_CODE ||'CYBERBIZ'}}
           AOA_USERNAME: ${{ secrets.AOA_USERNAME }}
           AOA_PASSWORD: ${{ secrets.AOA_PASSWORD }}
-          AOA_LAT: ${{ vars.AOA_LAT || '25.0330' }}
-          AOA_LON: ${{ vars.AOA_LON || '121.5654' }}
+          AOA_LAT: ${{ vars.AOA_LAT || '25.080869' }}
+          AOA_LON: ${{ vars.AOA_LON || '121.569862' }}
           TZ: ${{ vars.TZ || 'Asia/Taipei' }}
           LOCALE: ${{ vars.LOCALE || 'zh-TW' }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
