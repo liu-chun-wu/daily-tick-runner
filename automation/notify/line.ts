@@ -2,6 +2,7 @@
 import fs from 'node:fs/promises';
 import { env } from '../../config/env';
 import { uploadToDiscordAndGetUrl } from './discord';
+import { log } from '../utils/logger';
 import type { NotifyOpts } from './types';
 
 /**
@@ -11,9 +12,14 @@ import type { NotifyOpts } from './types';
 export async function notifyLine(opts: NotifyOpts) {
     const token = env.lineChannelAccessToken;
     const to = env.lineUserId;
-    if (!token || !to) return;
+    if (!token || !to) {
+        log.warn('LINE', 'LINE 相關環境變數未設定，跳過通知');
+        return;
+    }
 
     const url = 'https://api.line.me/v2/bot/message/push';
+    const hasImage = !!(opts.screenshotBuffer || opts.screenshotPath);
+    log.notifyStart('LINE', 'LINE', hasImage);
 
     try {
         // 1) 先送文字訊息（就算圖片失敗至少有訊息）
@@ -45,13 +51,13 @@ export async function notifyLine(opts: NotifyOpts) {
                 try {
                     imageBuffer = await fs.readFile(opts.screenshotPath!);
                 } catch (e) {
-                    console.warn('[notifyLine] readFile failed:', (e as Error).message);
+                    log.warn('LINE', 'readFile failed', e);
                 }
             }
 
             if (imageBuffer) {
                 try {
-                    console.log('[notifyLine] 正在上傳圖片到 Discord...');
+                    log.info('LINE', '正在上傳圖片到 Discord...');
                     // 3) 上傳到 Discord 取得 CDN 連結
                     const imageUrl = await uploadToDiscordAndGetUrl(
                         env.discordWebhookUrl,
@@ -60,7 +66,7 @@ export async function notifyLine(opts: NotifyOpts) {
                         opts.message
                     );
                     
-                    console.log('[notifyLine] 圖片上傳成功，正在發送 LINE 圖片訊息...');
+                    log.info('LINE', '圖片上傳成功，正在發送 LINE 圖片訊息...');
                     // 4) 用 LINE 發 image（兩個 URL 都要是 HTTPS）
                     await fetch(url, {
                         method: 'POST',
@@ -78,19 +84,19 @@ export async function notifyLine(opts: NotifyOpts) {
                         })
                     });
                     
-                    console.log('[notifyLine] LINE 圖片訊息發送成功');
+                    log.info('LINE', 'LINE 圖片訊息發送成功');
                 } catch (e) {
-                    console.warn('[notifyLine] 圖片上傳或發送失敗，僅發送文字訊息:', (e as Error).message);
+                    log.warn('LINE', '圖片上傳或發送失敗，僅發送文字訊息', e);
                 }
             }
         } else if (hasBuffer || hasPath) {
-            console.warn('[notifyLine] 需要 Discord Webhook URL 才能發送圖片');
+            log.warn('LINE', '需要 Discord Webhook URL 才能發送圖片');
         }
 
-        console.log('[notifyLine] 文字訊息發送成功');
+        log.notifySuccess('LINE', 'LINE');
     } catch (err) {
         // 外部整合失敗不應讓測試掛掉
-        console.warn('[notifyLine] message push failed (non-blocking):', (err as Error).message);
+        log.notifyFailed('LINE', 'LINE', err as Error);
     }
 }
 

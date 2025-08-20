@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { request, FormData } from 'undici';
 import { env } from '../../config/env';
+import { log } from '../utils/logger';
 import type { NotifyOpts } from './types';
 
 /**
@@ -46,9 +47,14 @@ export async function uploadToDiscordAndGetUrl(
 
 export async function notifyDiscord(opts: NotifyOpts) {
     const url = env.discordWebhookUrl;
-    if (!url) return;
+    if (!url) {
+        log.warn('Discord', 'Discord Webhook URL 未設定，跳過通知');
+        return;
+    }
 
     const payload = { content: opts.message };
+    const hasImage = !!(opts.screenshotBuffer || opts.screenshotPath);
+    log.notifyStart('Discord', 'Discord', hasImage);
 
     try {
         const hasBuffer = !!opts.screenshotBuffer;
@@ -69,7 +75,7 @@ export async function notifyDiscord(opts: NotifyOpts) {
                 try {
                     data = await fs.readFile(opts.screenshotPath!);
                 } catch (e) {
-                    console.warn('[notifyDiscord] readFile failed; fallback to text-only:', (e as Error).message);
+                    log.warn('Discord', 'readFile failed; fallback to text-only', e);
                 }
             }
 
@@ -79,6 +85,7 @@ export async function notifyDiscord(opts: NotifyOpts) {
                 const blob = new Blob([new Uint8Array(data)], { type: 'image/png' });
                 form.append('files[0]', blob, name);
                 await request(url, { method: 'POST', body: form });
+                log.notifySuccess('Discord', 'Discord');
                 return; // 成功送出就結束
             }
         }
@@ -89,8 +96,9 @@ export async function notifyDiscord(opts: NotifyOpts) {
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify(payload),
         });
+        log.notifySuccess('Discord', 'Discord');
     } catch (err) {
         // 外部整合失敗不應讓 smoke 掛掉
-        console.warn('[notifyDiscord] webhook send failed (non-blocking):', (err as Error).message);
+        log.notifyFailed('Discord', 'Discord', err as Error);
     }
 }

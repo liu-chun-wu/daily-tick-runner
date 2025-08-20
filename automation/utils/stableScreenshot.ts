@@ -1,8 +1,10 @@
 // automation/utils/stableScreenshot.ts
 import { expect, type Page, type TestInfo } from '@playwright/test';
+import { log } from './logger';
 
 /** 進入出勤打卡頁後，等到畫面穩定可截圖 */
 export async function waitForAttendanceReady(page: Page) {
+    log.debug('Screenshot', '開始等待頁面穩定');
     // 1) DOM ready
     await page.waitForLoadState('domcontentloaded'); // DOM 解析完成
     // 2) 核心 UI 就緒（web-first 斷言自動等待）
@@ -22,15 +24,22 @@ export async function waitForAttendanceReady(page: Page) {
         caret-color: transparent !important;
       }`
     });
+    
+    log.debug('Screenshot', '頁面穩定完成，可以進行截圖');
 }
 
 /** 整頁截圖並回傳 Buffer（純截圖，不處理儲存） */
 export async function captureFullPageScreenshot(page: Page): Promise<Buffer> {
-    return await page.screenshot({ fullPage: true });
+    log.debug('Screenshot', '開始撷取全頁截圖');
+    const buffer = await page.screenshot({ fullPage: true });
+    log.info('Screenshot', `截圖完成，大小: ${(buffer.length / 1024).toFixed(2)} KB`);
+    return buffer;
 }
 
 /** 整頁截圖 + 附到報表；回傳 Buffer 與輸出路徑 */
 export async function fullPageScreenshotStable(page: Page, testInfo: TestInfo, name: string) {
+    log.info('Screenshot', `開始截圖並儲存: ${name}`);
+    
     // 截圖取得 Buffer
     const screenshotBuffer = await captureFullPageScreenshot(page);
     
@@ -41,5 +50,6 @@ export async function fullPageScreenshotStable(page: Page, testInfo: TestInfo, n
     // 附加到測試報表
     await testInfo.attach(name, { path: outPath, contentType: 'image/png' });
     
+    log.info('Screenshot', `截圖儲存完成: ${outPath}`);
     return { screenshotBuffer, outPath };
 }

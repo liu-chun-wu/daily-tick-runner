@@ -40,4 +40,7 @@ export const env = {
     // 測試相關（可選）
     notifyTestImage: optionalEnv('NOTIFY_TEST_IMAGE'),
     ci: optionalEnv('CI'),
+    
+    // 日誌相關（可選）
+    logLevel: optionalEnv('LOG_LEVEL') || 'INFO',
 };
