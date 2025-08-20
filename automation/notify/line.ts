@@ -1,7 +1,7 @@
 // automation/notify/line.ts
 import fs from 'node:fs/promises';
 import { env } from '../../config/env';
-import { uploadToDiscordAndGetUrl } from './discord';
+import { uploadImageToDiscord } from './discord';
 import { log } from '../utils/logger';
 import type { NotifyOpts } from './types';
 
@@ -38,7 +38,30 @@ export async function notifyLine(opts: NotifyOpts) {
             })
         });
 
-        // 2) 處理圖片上傳（如果有圖片）
+        // 2) 如果已有圖片 URL，直接使用
+        if (opts.imageUrl) {
+            log.info('LINE', '使用已有的圖片 URL，正在發送 LINE 圖片訊息...');
+            await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    to,
+                    messages: [{
+                        type: 'image',
+                        originalContentUrl: opts.imageUrl,
+                        previewImageUrl: opts.imageUrl
+                    }]
+                })
+            });
+            log.info('LINE', 'LINE 圖片訊息發送成功');
+            log.notifySuccess('LINE', 'LINE');
+            return;
+        }
+
+        // 3) 處理圖片上傳（如果有圖片但沒有 URL）
         const hasBuffer = !!opts.screenshotBuffer;
         const hasPath = !!opts.screenshotPath;
 
@@ -58,16 +81,15 @@ export async function notifyLine(opts: NotifyOpts) {
             if (imageBuffer) {
                 try {
                     log.info('LINE', '正在上傳圖片到 Discord...');
-                    // 3) 上傳到 Discord 取得 CDN 連結
-                    const imageUrl = await uploadToDiscordAndGetUrl(
+                    // 上傳到 Discord 取得 CDN 連結（純上傳，不發送訊息）
+                    const imageUrl = await uploadImageToDiscord(
                         env.discordWebhookUrl,
                         imageBuffer,
-                        opts.filename || 'screenshot.png',
-                        opts.message
+                        opts.filename || 'screenshot.png'
                     );
                     
                     log.info('LINE', '圖片上傳成功，正在發送 LINE 圖片訊息...');
-                    // 4) 用 LINE 發 image（兩個 URL 都要是 HTTPS）
+                    // 用 LINE 發 image（兩個 URL 都要是 HTTPS）
                     await fetch(url, {
                         method: 'POST',
                         headers: {

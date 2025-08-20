@@ -10,10 +10,10 @@ import type { NotifyOpts } from './types';
 /**
  * Helper function to make HTTP requests using Node.js built-in modules
  */
-function makeRequest(url: string, options: { 
-    method: string; 
-    headers?: Record<string, string>; 
-    body?: Buffer | string 
+function makeRequest(url: string, options: {
+    method: string;
+    headers?: Record<string, string>;
+    body?: Buffer | string
 }): Promise<{ status: number; data: any }> {
     return new Promise((resolve, reject) => {
         const urlObj = new URL(url);
@@ -32,8 +32,8 @@ function makeRequest(url: string, options: {
             });
             res.on('end', () => {
                 try {
-                    const jsonData = res.headers['content-type']?.includes('application/json') 
-                        ? JSON.parse(data) 
+                    const jsonData = res.headers['content-type']?.includes('application/json')
+                        ? JSON.parse(data)
                         : data;
                     resolve({ status: res.statusCode || 0, data: jsonData });
                 } catch (err) {
@@ -54,7 +54,52 @@ function makeRequest(url: string, options: {
 }
 
 /**
+ * 純圖片上傳到 Discord，不發送訊息內容，僅返回 CDN URL
+ * 專用於其他通知服務（如 LINE）需要圖片 URL 的場景
+ */
+export async function uploadImageToDiscord(
+    webhookUrl: string,
+    imageBuffer: Buffer,
+    filename = 'screenshot.png'
+): Promise<string> {
+    const url = webhookUrl.includes('?') ? `${webhookUrl}&wait=true` : `${webhookUrl}?wait=true`;
+    const boundary = `----formdata-undici-${Math.random().toString(16)}`;
+
+    // 只上傳圖片，不包含任何訊息內容
+    const chunks: string[] = [];
+    chunks.push(`--${boundary}\r\n`);
+    chunks.push(`Content-Disposition: form-data; name="files[0]"; filename="${filename}"\r\n`);
+    chunks.push('Content-Type: image/png\r\n\r\n');
+
+    const formData = Buffer.concat([
+        Buffer.from(chunks.join('')),
+        imageBuffer,
+        Buffer.from(`\r\n--${boundary}--\r\n`)
+    ]);
+
+    const res = await makeRequest(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        },
+        body: formData,
+    });
+
+    if (res.status !== 200) {
+        throw new Error(`Discord image upload failed: ${res.status}`);
+    }
+    const msg = res.data as {
+        attachments?: Array<{ url: string }>;
+    };
+
+    const cdnUrl = msg.attachments?.[0]?.url;
+    if (!cdnUrl) throw new Error('No attachment url returned from Discord');
+    return cdnUrl;
+}
+
+/**
  * 上傳圖片到 Discord 並取得 CDN URL（約 24小時有效）
+ * 包含訊息內容的完整上傳功能
  */
 export async function uploadToDiscordAndGetUrl(
     webhookUrl: string,
@@ -76,11 +121,11 @@ export async function uploadToDiscordAndGetUrl(
     chunks.push('Content-Disposition: form-data; name="payload_json"\r\n\r\n');
     chunks.push(payload);
     chunks.push('\r\n');
-    
+
     chunks.push(`--${boundary}\r\n`);
     chunks.push(`Content-Disposition: form-data; name="files[0]"; filename="${filename}"\r\n`);
     chunks.push('Content-Type: image/png\r\n\r\n');
-    
+
     const formData = Buffer.concat([
         Buffer.from(chunks.join('')),
         imageBuffer,
@@ -94,7 +139,7 @@ export async function uploadToDiscordAndGetUrl(
         },
         body: formData,
     });
-    
+
     if (res.status !== 200) {
         throw new Error(`Discord upload failed: ${res.status}`);
     }
@@ -114,11 +159,28 @@ export async function notifyDiscord(opts: NotifyOpts) {
         return;
     }
 
-    const payload = { content: opts.message };
-    const hasImage = !!(opts.screenshotBuffer || opts.screenshotPath);
+    // 如果已有圖片 URL，直接在訊息中包含連結
+    const message = opts.imageUrl
+        ? `${opts.message}\n${opts.imageUrl}`
+        : opts.message;
+
+    const payload = { content: message };
+    const hasImage = !!(opts.imageUrl || opts.screenshotBuffer || opts.screenshotPath);
     log.notifyStart('Discord', 'Discord', hasImage);
 
     try {
+        // 如果已有 imageUrl，只發送文字訊息（包含圖片連結）
+        if (opts.imageUrl) {
+            await makeRequest(url, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            log.notifySuccess('Discord', 'Discord');
+            return;
+        }
+
+        // 以下是原有的邏輯（當沒有 imageUrl 時）
         const hasBuffer = !!opts.screenshotBuffer;
         const hasPath = !!opts.screenshotPath;
 
@@ -140,18 +202,18 @@ export async function notifyDiscord(opts: NotifyOpts) {
 
             if (data) {
                 const boundary = `----formdata-undici-${Math.random().toString(16)}`;
-                
+
                 // Build multipart form data manually
                 const chunks: string[] = [];
                 chunks.push(`--${boundary}\r\n`);
                 chunks.push('Content-Disposition: form-data; name="payload_json"\r\n\r\n');
                 chunks.push(JSON.stringify(payload));
                 chunks.push('\r\n');
-                
+
                 chunks.push(`--${boundary}\r\n`);
                 chunks.push(`Content-Disposition: form-data; name="files[0]"; filename="${name}"\r\n`);
                 chunks.push('Content-Type: image/png\r\n\r\n');
-                
+
                 const formData = Buffer.concat([
                     Buffer.from(chunks.join('')),
                     data,

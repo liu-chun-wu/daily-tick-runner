@@ -16,4 +16,7 @@ export interface NotifyOpts {
     
     /** 截圖檔案路徑（當沒有 Buffer 時的後備方案） */
     screenshotPath?: string;
+    
+    /** 已上傳的圖片 URL（避免重複上傳） */
+    imageUrl?: string;
 }

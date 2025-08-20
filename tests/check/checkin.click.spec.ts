@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { AttendancePage } from '../../automation/pages/AttendancePage';
 import { waitForAttendanceReady, captureFullPageScreenshot } from '../../automation/utils/stableScreenshot';
-import { notifyDiscord } from '../../automation/notify/discord';
+import { notifyDiscord, uploadImageToDiscord } from '../../automation/notify/discord';
 import { notifyLine } from '../../automation/notify/line';
 import { env } from '../../config/env';
 import { getEnvLocationName } from '../../automation/utils/location';
@@ -49,9 +49,24 @@ test('簽到(真的點)', { tag: '@click' }, async ({ page }, testInfo) => {
         const location = `📍 ${getEnvLocationName(env)}`;
         const message = `✅ 簽到成功\n🕒 ${nowTW}\n${location}`;
 
+        // 先上傳圖片到 Discord 獲取 URL
+        let imageUrl: string | undefined;
+        if (screenshotBuffer && env.discordWebhookUrl) {
+            try {
+                imageUrl = await uploadImageToDiscord(
+                    env.discordWebhookUrl,
+                    screenshotBuffer,
+                    filename
+                );
+            } catch (error) {
+                console.warn('Failed to upload image to Discord:', error);
+            }
+        }
+
+        // 使用相同的圖片 URL 發送通知
         await Promise.all([
-            notifyDiscord({ message, screenshotBuffer, filename, screenshotPath }),
-            notifyLine({ message, screenshotBuffer, filename, screenshotPath }),
+            notifyDiscord({ message, imageUrl }),
+            notifyLine({ message, imageUrl, screenshotBuffer, filename, screenshotPath }),
         ]);
     });
 });
