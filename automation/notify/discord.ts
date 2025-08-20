@@ -1,10 +1,57 @@
 // automation/notify/discord.ts
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { request } from 'undici';
+import https from 'node:https';
+import { URL } from 'node:url';
 import { env } from '../../config/env';
 import { log } from '../utils/logger';
 import type { NotifyOpts } from './types';
+
+/**
+ * Helper function to make HTTP requests using Node.js built-in modules
+ */
+function makeRequest(url: string, options: { 
+    method: string; 
+    headers?: Record<string, string>; 
+    body?: Buffer | string 
+}): Promise<{ status: number; data: any }> {
+    return new Promise((resolve, reject) => {
+        const urlObj = new URL(url);
+        const requestOptions = {
+            hostname: urlObj.hostname,
+            port: urlObj.port || 443,
+            path: urlObj.pathname + urlObj.search,
+            method: options.method,
+            headers: options.headers || {},
+        };
+
+        const req = https.request(requestOptions, (res) => {
+            let data = '';
+            res.on('data', (chunk) => {
+                data += chunk;
+            });
+            res.on('end', () => {
+                try {
+                    const jsonData = res.headers['content-type']?.includes('application/json') 
+                        ? JSON.parse(data) 
+                        : data;
+                    resolve({ status: res.statusCode || 0, data: jsonData });
+                } catch (err) {
+                    resolve({ status: res.statusCode || 0, data });
+                }
+            });
+        });
+
+        req.on('error', (err) => {
+            reject(err);
+        });
+
+        if (options.body) {
+            req.write(options.body);
+        }
+        req.end();
+    });
+}
 
 /**
  * 上傳圖片到 Discord 並取得 CDN URL（約 24小時有效）
@@ -40,7 +87,7 @@ export async function uploadToDiscordAndGetUrl(
         Buffer.from(`\r\n--${boundary}--\r\n`)
     ]);
 
-    const res = await request(url, {
+    const res = await makeRequest(url, {
         method: 'POST',
         headers: {
             'Content-Type': `multipart/form-data; boundary=${boundary}`,
@@ -48,10 +95,10 @@ export async function uploadToDiscordAndGetUrl(
         body: formData,
     });
     
-    if (res.statusCode !== 200) {
-        throw new Error(`Discord upload failed: ${res.statusCode}`);
+    if (res.status !== 200) {
+        throw new Error(`Discord upload failed: ${res.status}`);
     }
-    const msg = await res.body.json() as {
+    const msg = res.data as {
         attachments?: Array<{ url: string }>;
     };
 
@@ -111,7 +158,7 @@ export async function notifyDiscord(opts: NotifyOpts) {
                     Buffer.from(`\r\n--${boundary}--\r\n`)
                 ]);
 
-                await request(url, {
+                await makeRequest(url, {
                     method: 'POST',
                     headers: {
                         'Content-Type': `multipart/form-data; boundary=${boundary}`,
@@ -124,7 +171,7 @@ export async function notifyDiscord(opts: NotifyOpts) {
         }
 
         // 沒圖或讀檔失敗 → 純文字，不阻斷 smoke
-        await request(url, {
+        await makeRequest(url, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify(payload),
