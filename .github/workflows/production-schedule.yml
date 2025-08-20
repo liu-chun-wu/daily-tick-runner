@@ -1,0 +1,183 @@
+name: 正式排程 - 自動打卡 (暫時停用)
+
+# 🚨 注意：此 workflow 目前已停用
+# 要啟用時，請取消下方 schedule 的註解並停用 test-schedule.yml
+
+on:
+  # 正式排程時間（暫時註解）
+  # schedule:
+  #   # 週一到週五 早上 8:30 (UTC 23:30) - 簽到時間
+  #   - cron: '30 23 * * 1-5'
+  #   # 週一到週五 下午 17:30 (UTC 08:30) - 簽退時間  
+  #   - cron: '30 8 * * 1-5'
+  
+  # 允許手動觸發
+  workflow_dispatch:
+    inputs:
+      action_type:
+        description: '打卡類型'
+        required: true
+        default: 'both'
+        type: choice
+        options:
+          - checkin    # 只簽到
+          - checkout   # 只簽退
+          - both       # 簽到+簽退
+      log_level:
+        description: '日誌等級'
+        required: false
+        default: 'INFO'
+        type: choice
+        options:
+          - DEBUG
+          - INFO
+          - WARN
+          - ERROR
+
+jobs:
+  production-punch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: 🔧 Install dependencies
+        run: npm ci
+
+      - name: 🎭 Install Playwright browsers
+        run: npx playwright install chromium
+
+      - name: 🕐 判斷執行時機
+        id: determine-action
+        run: |
+          # 取得台北時間
+          TAIPEI_HOUR=$(TZ='Asia/Taipei' date '+%H')
+          TAIPEI_MINUTE=$(TZ='Asia/Taipei' date '+%M')
+          TAIPEI_TIME="${TAIPEI_HOUR}:${TAIPEI_MINUTE}"
+          
+          echo "台北時間: $TAIPEI_TIME"
+          
+          # 手動觸發時使用輸入參數
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            ACTION_TYPE="${{ github.event.inputs.action_type }}"
+            echo "手動觸發，執行類型: $ACTION_TYPE"
+          else
+            # 自動排程判斷
+            if [ "$TAIPEI_HOUR" -ge 8 ] && [ "$TAIPEI_HOUR" -le 10 ]; then
+              ACTION_TYPE="checkin"
+              echo "上午時段，執行簽到"
+            elif [ "$TAIPEI_HOUR" -ge 17 ] && [ "$TAIPEI_HOUR" -le 19 ]; then
+              ACTION_TYPE="checkout"  
+              echo "下午時段，執行簽退"
+            else
+              ACTION_TYPE="both"
+              echo "其他時段，執行完整流程"
+            fi
+          fi
+          
+          echo "action_type=$ACTION_TYPE" >> $GITHUB_OUTPUT
+          echo "taipei_time=$TAIPEI_TIME" >> $GITHUB_OUTPUT
+
+      - name: 🔍 Environment check and login setup
+        env:
+          BASE_URL: ${{ vars.BASE_URL || 'https://erpline.aoacloud.com.tw/' }}
+          COMPANY_CODE: ${{ vars.COMPANY_CODE }}
+          AOA_USERNAME: ${{ secrets.AOA_USERNAME }}
+          AOA_PASSWORD: ${{ secrets.AOA_PASSWORD }}
+          AOA_LAT: ${{ vars.AOA_LAT || '25.0330' }}
+          AOA_LON: ${{ vars.AOA_LON || '121.5654' }}
+          TZ: ${{ vars.TZ || 'Asia/Taipei' }}
+          LOCALE: ${{ vars.LOCALE || 'zh-TW' }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
+          LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
+          LOG_LEVEL: ${{ github.event.inputs.log_level || 'INFO' }}
+        run: |
+          echo "🔍 開始環境檢查和登入設置..."
+          npx playwright test --project=setup --workers=1
+
+      - name: ✅ 執行簽到
+        if: steps.determine-action.outputs.action_type == 'checkin' || steps.determine-action.outputs.action_type == 'both'
+        env:
+          BASE_URL: ${{ vars.BASE_URL || 'https://erpline.aoacloud.com.tw/' }}
+          COMPANY_CODE: ${{ vars.COMPANY_CODE }}
+          AOA_USERNAME: ${{ secrets.AOA_USERNAME }}
+          AOA_PASSWORD: ${{ secrets.AOA_PASSWORD }}
+          AOA_LAT: ${{ vars.AOA_LAT || '25.0330' }}
+          AOA_LON: ${{ vars.AOA_LON || '121.5654' }}
+          TZ: ${{ vars.TZ || 'Asia/Taipei' }}
+          LOCALE: ${{ vars.LOCALE || 'zh-TW' }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
+          LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
+          LOG_LEVEL: ${{ github.event.inputs.log_level || 'INFO' }}
+        run: |
+          echo "✅ 開始執行簽到..."
+          echo "⏰ 台北時間: ${{ steps.determine-action.outputs.taipei_time }}"
+          npx playwright test tests/check/checkin.click.spec.ts --project=chromium-click --workers=1 --trace=on
+
+      - name: ⏰ 簽到簽退間隔 (如果需要執行兩者)
+        if: steps.determine-action.outputs.action_type == 'both'
+        run: |
+          echo "⏰ 等待 30 秒後執行簽退..."
+          sleep 30
+
+      - name: ❌ 執行簽退
+        if: steps.determine-action.outputs.action_type == 'checkout' || steps.determine-action.outputs.action_type == 'both'
+        env:
+          BASE_URL: ${{ vars.BASE_URL || 'https://erpline.aoacloud.com.tw/' }}
+          COMPANY_CODE: ${{ vars.COMPANY_CODE }}
+          AOA_USERNAME: ${{ secrets.AOA_USERNAME }}
+          AOA_PASSWORD: ${{ secrets.AOA_PASSWORD }}
+          AOA_LAT: ${{ vars.AOA_LAT || '25.0330' }}
+          AOA_LON: ${{ vars.AOA_LON || '121.5654' }}
+          TZ: ${{ vars.TZ || 'Asia/Taipei' }}
+          LOCALE: ${{ vars.LOCALE || 'zh-TW' }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
+          LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
+          LOG_LEVEL: ${{ github.event.inputs.log_level || 'INFO' }}
+        run: |
+          echo "❌ 開始執行簽退..."  
+          echo "⏰ 台北時間: $(TZ='Asia/Taipei' date '+%H:%M')"
+          npx playwright test tests/check/checkout.click.spec.ts --project=chromium-click --workers=1 --trace=on
+
+      - name: 📤 Upload test results (if failed)
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: production-results-${{ github.run_number }}
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 14
+
+      - name: 🚨 Notify on failure
+        if: failure()
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          if [ -n "$DISCORD_WEBHOOK_URL" ]; then
+            curl -H "Content-Type: application/json" \
+                 -d "{\"content\":\"🚨 **正式自動打卡失敗**\n📅 日期: $(TZ='Asia/Taipei' date '+%Y-%m-%d')\n⏰ 時間: ${{ steps.determine-action.outputs.taipei_time }}\n🎯 執行類型: ${{ steps.determine-action.outputs.action_type }}\n🔗 查看詳情: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" \
+                 "$DISCORD_WEBHOOK_URL" || echo "Discord 通知發送失敗"
+          fi
+
+      - name: ✅ Success notification
+        if: success()
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          if [ -n "$DISCORD_WEBHOOK_URL" ]; then
+            curl -H "Content-Type: application/json" \
+                 -d "{\"content\":\"✅ **自動打卡完成**\n📅 日期: $(TZ='Asia/Taipei' date '+%Y-%m-%d')\n⏰ 時間: ${{ steps.determine-action.outputs.taipei_time }}\n🎯 執行類型: ${{ steps.determine-action.outputs.action_type }}\"}" \
+                 "$DISCORD_WEBHOOK_URL" || echo "Discord 通知發送失敗"
+          fi

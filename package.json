@@ -6,7 +6,18 @@
   "directories": {
     "test": "tests"
   },
-  "scripts": {},
+  "scripts": {
+    "test:setup": "playwright test --project=setup --workers=1",
+    "test:smoke": "playwright test --project=chromium-smoke --workers=1",
+    "test:click": "playwright test --project=chromium-click --workers=1",
+    "test:notify": "playwright test --project=notify --workers=1", 
+    "test:all": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:debug": "playwright test --debug",
+    "playwright:install": "playwright install",
+    "playwright:install-deps": "playwright install-deps",
+    "postinstall": "playwright install chromium"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/liu-chun-wu/daily-tick-runner.git"

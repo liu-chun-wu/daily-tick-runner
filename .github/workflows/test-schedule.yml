@@ -1,0 +1,107 @@
+name: 測試排程 - 自動打卡
+
+on:
+  schedule:
+    # 每5分鐘執行一次（測試階段）
+    - cron: '*/5 * * * *'
+  
+  # 允許手動觸發（方便調試）
+  workflow_dispatch:
+    inputs:
+      log_level:
+        description: '日誌等級'
+        required: false
+        default: 'INFO'
+        type: choice
+        options:
+          - DEBUG
+          - INFO
+          - WARN
+          - ERROR
+
+jobs:
+  test-punch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: 🔧 Install dependencies
+        run: npm ci
+
+      - name: 🎭 Install Playwright browsers
+        run: npx playwright install chromium
+
+      - name: 🔍 Environment check and login setup
+        env:
+          BASE_URL: ${{ vars.BASE_URL || 'https://erpline.aoacloud.com.tw/' }}
+          COMPANY_CODE: ${{ vars.COMPANY_CODE }}
+          AOA_USERNAME: ${{ secrets.AOA_USERNAME }}
+          AOA_PASSWORD: ${{ secrets.AOA_PASSWORD }}
+          AOA_LAT: ${{ vars.AOA_LAT || '25.0330' }}
+          AOA_LON: ${{ vars.AOA_LON || '121.5654' }}
+          TZ: ${{ vars.TZ || 'Asia/Taipei' }}
+          LOCALE: ${{ vars.LOCALE || 'zh-TW' }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
+          LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
+          LOG_LEVEL: ${{ github.event.inputs.log_level || 'INFO' }}
+        run: |
+          echo "🔍 開始環境檢查和登入設置..."
+          npx playwright test --project=setup --workers=1
+
+      - name: 🎯 執行真實打卡操作
+        env:
+          BASE_URL: ${{ vars.BASE_URL || 'https://erpline.aoacloud.com.tw/' }}
+          COMPANY_CODE: ${{ vars.COMPANY_CODE }}
+          AOA_USERNAME: ${{ secrets.AOA_USERNAME }}
+          AOA_PASSWORD: ${{ secrets.AOA_PASSWORD }}
+          AOA_LAT: ${{ vars.AOA_LAT || '25.0330' }}
+          AOA_LON: ${{ vars.AOA_LON || '121.5654' }}
+          TZ: ${{ vars.TZ || 'Asia/Taipei' }}
+          LOCALE: ${{ vars.LOCALE || 'zh-TW' }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
+          LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
+          LOG_LEVEL: ${{ github.event.inputs.log_level || 'INFO' }}
+        run: |
+          echo "🎯 開始執行真實打卡操作..."
+          echo "⏰ 執行時間: $(date -u '+%Y-%m-%d %H:%M:%S UTC') ($(TZ='Asia/Taipei' date '+%Y-%m-%d %H:%M:%S %Z'))"
+          npx playwright test --project=chromium-click --workers=1 --trace=on
+
+      - name: 📤 Upload test results (if failed)
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-results-${{ github.run_number }}
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7
+
+      - name: 📊 Upload traces (if failed)
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: traces-${{ github.run_number }}
+          path: test-results/**/*.zip
+          retention-days: 3
+
+      - name: 🚨 Notify on failure
+        if: failure()
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          if [ -n "$DISCORD_WEBHOOK_URL" ]; then
+            curl -H "Content-Type: application/json" \
+                 -d "{\"content\":\"❌ **自動打卡測試失敗**\n⏰ 時間: $(TZ='Asia/Taipei' date '+%Y-%m-%d %H:%M:%S %Z')\n🔗 查看詳情: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" \
+                 "$DISCORD_WEBHOOK_URL" || echo "Discord 通知發送失敗"
+          fi
