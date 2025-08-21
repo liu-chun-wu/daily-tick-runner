@@ -79,7 +79,7 @@ jobs:
           echo "🔍 開始環境檢查和登入設置..."
           npx playwright test --project=setup --workers=1
 
-      - name: 🎯 執行真實打卡操作（含重試機制）
+      - name: 🎯 測試打卡操作（含重試機制）
         uses: nick-fields/retry@v3
         with:
           timeout_minutes: 15
@@ -87,11 +87,11 @@ jobs:
           retry_wait_seconds: 60
           retry_on: error
           command: |
-            echo "🎯 開始執行真實打卡操作..."
+            echo "🎯 開始測試打卡操作..."
             echo "⏰ 執行時間: $(date -u '+%Y-%m-%d %H:%M:%S UTC') ($(TZ='Asia/Taipei' date '+%Y-%m-%d %H:%M:%S %Z'))"
             echo "📋 測試類型: ${{ github.event.inputs.action_type || 'checkin' }} - ${{ github.event.inputs.test_type || 'click' }}"
             TEST_FILE="tests/check/${{ github.event.inputs.action_type || 'checkin' }}.${{ github.event.inputs.test_type || 'click' }}.spec.ts"
-            PROJECT_NAME="chromium-${{ github.event.inputs.test_type || 'click' }}"
+            PROJECT_NAME="chromium-${{ github.event.inputs.test_type || 'smoke' }}"
             echo "🎭 執行測試文件: $TEST_FILE"
             npx playwright test "$TEST_FILE" --project="$PROJECT_NAME" --workers=1 --trace on
         env:
