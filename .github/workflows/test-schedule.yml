@@ -8,10 +8,26 @@ on:
   # 允許手動觸發（方便調試）
   workflow_dispatch:
     inputs:
+      test_type:
+        description: '測試類型'
+        required: false
+        default: 'click'
+        type: choice
+        options:
+          - smoke
+          - click
+      action_type:
+        description: '動作類型'
+        required: false
+        default: 'checkin'
+        type: choice
+        options:
+          - checkin
+          - checkout
       log_level:
         description: '日誌等級'
         required: false
-        default: 'INFO'
+        default: 'DEBUG'
         type: choice
         options:
           - DEBUG
@@ -73,7 +89,11 @@ jobs:
           command: |
             echo "🎯 開始執行真實打卡操作..."
             echo "⏰ 執行時間: $(date -u '+%Y-%m-%d %H:%M:%S UTC') ($(TZ='Asia/Taipei' date '+%Y-%m-%d %H:%M:%S %Z'))"
-            npx playwright test tests/check/checkin.click.spec.ts --project=chromium-click --workers=1 --trace on
+            echo "📋 測試類型: ${{ github.event.inputs.action_type || 'checkin' }} - ${{ github.event.inputs.test_type || 'click' }}"
+            TEST_FILE="tests/check/${{ github.event.inputs.action_type || 'checkin' }}.${{ github.event.inputs.test_type || 'click' }}.spec.ts"
+            PROJECT_NAME="chromium-${{ github.event.inputs.test_type || 'click' }}"
+            echo "🎭 執行測試文件: $TEST_FILE"
+            npx playwright test "$TEST_FILE" --project="$PROJECT_NAME" --workers=1 --trace on
         env:
           BASE_URL: ${{ vars.BASE_URL || 'https://erpline.aoacloud.com.tw/' }}
           COMPANY_CODE: ${{ vars.COMPANY_CODE ||'CYBERBIZ'}}
