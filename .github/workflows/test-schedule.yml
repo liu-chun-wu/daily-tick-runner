@@ -10,7 +10,7 @@ on:
     inputs:
       test_type:
         description: '測試類型'
-        required: false
+        required: true
         default: 'smoke'
         type: choice
         options:
@@ -18,7 +18,7 @@ on:
           - click
       action_type:
         description: '動作類型'
-        required: false
+        required: true
         default: 'checkin'
         type: choice
         options:
