@@ -11,7 +11,7 @@ on:
       test_type:
         description: '測試類型'
         required: false
-        default: 'click'
+        default: 'smoke'
         type: choice
         options:
           - smoke
