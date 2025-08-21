@@ -35,26 +35,23 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     
+    env:
+      BASE_URL: ${{ vars.BASE_URL || 'https://erpline.aoacloud.com.tw/' }}
+      COMPANY_CODE: ${{ vars.COMPANY_CODE ||'CYBERBIZ'}}
+      AOA_USERNAME: ${{ secrets.AOA_USERNAME }}
+      AOA_PASSWORD: ${{ secrets.AOA_PASSWORD }}
+      AOA_LAT: ${{ vars.AOA_LAT || '25.080869' }}
+      AOA_LON: ${{ vars.AOA_LON || '121.569862' }}
+      TZ: ${{ vars.TZ || 'Asia/Taipei' }}
+      LOCALE: ${{ vars.LOCALE || 'zh-TW' }}
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
+      LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
+      LOG_LEVEL: ${{ github.event.inputs.log_level || 'INFO' }}
+    
     steps:
       - name: 📥 Checkout repository
         uses: actions/checkout@v4
-
-      - name: 📦 Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: 'npm'
-
-      - name: 🔧 Install dependencies
-        run: npm ci
-
-      - name: 🎭 Install Playwright browsers
-        run: npx playwright install chromium
-
-      - name: 🔤 Install Chinese fonts
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y fonts-noto-cjk fonts-wqy-zenhei
 
       - name: 🕐 判斷執行時機
         id: determine-action
@@ -86,21 +83,39 @@ jobs:
           
           echo "action_type=$ACTION_TYPE" >> $GITHUB_OUTPUT
           echo "taipei_time=$TAIPEI_TIME" >> $GITHUB_OUTPUT
+          echo "should_run=$([[ -n "$ACTION_TYPE" ]] && echo "true" || echo "false")" >> $GITHUB_OUTPUT
+
+      - name: ⏹️ 早期退出（非執行時間）
+        if: steps.determine-action.outputs.should_run != 'true'
+        run: |
+          echo "⏹️ 非打卡時間，工作流程提前結束"
+          echo "⏰ 台北時間: ${{ steps.determine-action.outputs.taipei_time }}"
+          echo "💡 這樣可以節省 GitHub Actions 的使用時間"
+          exit 0
+
+      - name: 📦 Setup Node.js
+        if: steps.determine-action.outputs.should_run == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: 🔧 Install dependencies
+        if: steps.determine-action.outputs.should_run == 'true'
+        run: npm ci
+
+      - name: 🎭 Install Playwright browsers
+        if: steps.determine-action.outputs.should_run == 'true'
+        run: npx playwright install chromium
+
+      - name: 🔤 Install Chinese fonts
+        if: steps.determine-action.outputs.should_run == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fonts-noto-cjk fonts-wqy-zenhei
 
       - name: 🔍 Environment check and login setup
-        env:
-          BASE_URL: ${{ vars.BASE_URL || 'https://erpline.aoacloud.com.tw/' }}
-          COMPANY_CODE: ${{ vars.COMPANY_CODE ||'CYBERBIZ'}}
-          AOA_USERNAME: ${{ secrets.AOA_USERNAME }}
-          AOA_PASSWORD: ${{ secrets.AOA_PASSWORD }}
-          AOA_LAT: ${{ vars.AOA_LAT || '25.080869' }}
-          AOA_LON: ${{ vars.AOA_LON || '121.569862' }}
-          TZ: ${{ vars.TZ || 'Asia/Taipei' }}
-          LOCALE: ${{ vars.LOCALE || 'zh-TW' }}
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
-          LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
-          LOG_LEVEL: ${{ github.event.inputs.log_level || 'INFO' }}
+        if: steps.determine-action.outputs.should_run == 'true'
         run: |
           echo "🔍 開始環境檢查和登入設置..."
           npx playwright test --project=setup --workers=1
@@ -117,19 +132,6 @@ jobs:
             echo "✅ 開始執行簽到..."
             echo "⏰ 台北時間: ${{ steps.determine-action.outputs.taipei_time }}"
             npx playwright test tests/check/checkin.click.spec.ts --project=chromium-click --workers=1 --trace=on
-        env:
-          BASE_URL: ${{ vars.BASE_URL || 'https://erpline.aoacloud.com.tw/' }}
-          COMPANY_CODE: ${{ vars.COMPANY_CODE ||'CYBERBIZ'}}
-          AOA_USERNAME: ${{ secrets.AOA_USERNAME }}
-          AOA_PASSWORD: ${{ secrets.AOA_PASSWORD }}
-          AOA_LAT: ${{ vars.AOA_LAT || '25.080869' }}
-          AOA_LON: ${{ vars.AOA_LON || '121.569862' }}
-          TZ: ${{ vars.TZ || 'Asia/Taipei' }}
-          LOCALE: ${{ vars.LOCALE || 'zh-TW' }}
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
-          LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
-          LOG_LEVEL: ${{ github.event.inputs.log_level || 'INFO' }}
 
       - name: ❌ 執行簽退（含重試機制）
         if: steps.determine-action.outputs.action_type == 'checkout'
@@ -141,21 +143,8 @@ jobs:
           retry_on: error
           command: |
             echo "❌ 開始執行簽退..."
-            echo "⏰ 台北時間: $(TZ='Asia/Taipei' date '+%H:%M')"
+            echo "⏰ 台北時間: ${{ steps.determine-action.outputs.taipei_time }}"
             npx playwright test tests/check/checkout.click.spec.ts --project=chromium-click --workers=1 --trace=on
-        env:
-          BASE_URL: ${{ vars.BASE_URL || 'https://erpline.aoacloud.com.tw/' }}
-          COMPANY_CODE: ${{ vars.COMPANY_CODE ||'CYBERBIZ'}}
-          AOA_USERNAME: ${{ secrets.AOA_USERNAME }}
-          AOA_PASSWORD: ${{ secrets.AOA_PASSWORD }}
-          AOA_LAT: ${{ vars.AOA_LAT || '25.080869' }}
-          AOA_LON: ${{ vars.AOA_LON || '121.569862' }}
-          TZ: ${{ vars.TZ || 'Asia/Taipei' }}
-          LOCALE: ${{ vars.LOCALE || 'zh-TW' }}
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
-          LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
-          LOG_LEVEL: ${{ github.event.inputs.log_level || 'INFO' }}
 
       - name: 📤 Upload test results (if failed)
         uses: actions/upload-artifact@v4
@@ -168,9 +157,7 @@ jobs:
           retention-days: 14
 
       - name: 🚨 Notify on failure
-        if: failure()
-        env:
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        if: failure() && steps.determine-action.outputs.should_run == 'true'
         run: |
           if [ -n "$DISCORD_WEBHOOK_URL" ]; then
             curl -H "Content-Type: application/json" \
