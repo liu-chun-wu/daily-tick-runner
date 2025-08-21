@@ -1,3 +1,4 @@
+
 #!/bin/bash
 
 # 自動打卡觸發腳本
@@ -8,13 +9,12 @@ set -euo pipefail
 
 # 配置
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SCRIPTS_ROOT="$(dirname "$SCRIPT_DIR")"
 LOG_DIR="$HOME/.daily-tick-runner/logs"
 LOG_FILE="$LOG_DIR/auto-punch-$(date +%Y%m).log"
 WORKFLOW_NAME="正式排程 - 自動打卡"
 
 # 載入時間配置
-source "$SCRIPTS_ROOT/config/time-config.sh"
+source "$SCRIPT_DIR/time-config.sh"
 
 # 建立日誌目錄
 mkdir -p "$LOG_DIR"

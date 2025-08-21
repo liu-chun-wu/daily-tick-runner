@@ -1,3 +1,4 @@
+
 #!/bin/bash
 
 # 更新定時打卡時間設定
@@ -8,7 +9,6 @@ set -euo pipefail
 
 # 配置
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SCRIPTS_ROOT="$(dirname "$SCRIPT_DIR")"
 LAUNCH_AGENTS_DIR="$HOME/Library/LaunchAgents"
 
 # 顏色輸出
@@ -37,7 +37,7 @@ error() {
 }
 
 # 載入當前配置
-source "$SCRIPTS_ROOT/config/time-config.sh"
+source "$SCRIPT_DIR/time-config.sh"
 
 # 顯示當前配置
 show_current_config() {
@@ -55,27 +55,27 @@ update_config_file() {
     local new_checkout_minute="$4"
     
     # 備份原配置
-    cp "$SCRIPTS_ROOT/config/time-config.sh" "$SCRIPTS_ROOT/config/backup/time-config.sh.bak"
+    cp "$SCRIPT_DIR/time-config.sh" "$SCRIPT_DIR/time-config.sh.bak"
     
     # 更新簽到時間
-    sed -i '' "s/^CHECKIN_HOUR=.*/CHECKIN_HOUR=$new_checkin_hour/" "$SCRIPTS_ROOT/config/time-config.sh"
-    sed -i '' "s/^CHECKIN_MINUTE=.*/CHECKIN_MINUTE=$new_checkin_minute/" "$SCRIPTS_ROOT/config/time-config.sh"
+    sed -i '' "s/^CHECKIN_HOUR=.*/CHECKIN_HOUR=$new_checkin_hour/" "$SCRIPT_DIR/time-config.sh"
+    sed -i '' "s/^CHECKIN_MINUTE=.*/CHECKIN_MINUTE=$new_checkin_minute/" "$SCRIPT_DIR/time-config.sh"
     
     # 更新簽到窗口 (前後各1小時)
     local checkin_start=$((new_checkin_hour - 1))
     local checkin_end=$((new_checkin_hour + 2))
-    sed -i '' "s/^CHECKIN_START_HOUR=.*/CHECKIN_START_HOUR=$checkin_start/" "$SCRIPTS_ROOT/config/time-config.sh"
-    sed -i '' "s/^CHECKIN_END_HOUR=.*/CHECKIN_END_HOUR=$checkin_end/" "$SCRIPTS_ROOT/config/time-config.sh"
+    sed -i '' "s/^CHECKIN_START_HOUR=.*/CHECKIN_START_HOUR=$checkin_start/" "$SCRIPT_DIR/time-config.sh"
+    sed -i '' "s/^CHECKIN_END_HOUR=.*/CHECKIN_END_HOUR=$checkin_end/" "$SCRIPT_DIR/time-config.sh"
     
     # 更新簽退時間
-    sed -i '' "s/^CHECKOUT_HOUR=.*/CHECKOUT_HOUR=$new_checkout_hour/" "$SCRIPTS_ROOT/config/time-config.sh"
-    sed -i '' "s/^CHECKOUT_MINUTE=.*/CHECKOUT_MINUTE=$new_checkout_minute/" "$SCRIPTS_ROOT/config/time-config.sh"
+    sed -i '' "s/^CHECKOUT_HOUR=.*/CHECKOUT_HOUR=$new_checkout_hour/" "$SCRIPT_DIR/time-config.sh"
+    sed -i '' "s/^CHECKOUT_MINUTE=.*/CHECKOUT_MINUTE=$new_checkout_minute/" "$SCRIPT_DIR/time-config.sh"
     
     # 更新簽退窗口 (前後各1小時)
     local checkout_start=$((new_checkout_hour - 1))
     local checkout_end=$((new_checkout_hour + 1))
-    sed -i '' "s/^CHECKOUT_START_HOUR=.*/CHECKOUT_START_HOUR=$checkout_start/" "$SCRIPTS_ROOT/config/time-config.sh"
-    sed -i '' "s/^CHECKOUT_END_HOUR=.*/CHECKOUT_END_HOUR=$checkout_end/" "$SCRIPTS_ROOT/config/time-config.sh"
+    sed -i '' "s/^CHECKOUT_START_HOUR=.*/CHECKOUT_START_HOUR=$checkout_start/" "$SCRIPT_DIR/time-config.sh"
+    sed -i '' "s/^CHECKOUT_END_HOUR=.*/CHECKOUT_END_HOUR=$checkout_end/" "$SCRIPT_DIR/time-config.sh"
     
     success "配置文件已更新"
 }
@@ -209,9 +209,9 @@ EOF
 </plist>
 EOF
     
-    # 更新 templates 目錄中的 plist 文件
-    cp "/tmp/com.daily-tick-runner.checkin.plist" "$SCRIPTS_ROOT/config/templates/checkin.plist.template"
-    cp "/tmp/com.daily-tick-runner.checkout.plist" "$SCRIPTS_ROOT/config/templates/checkout.plist.template"
+    # 更新 scripts 目錄中的 plist 文件
+    cp "/tmp/com.daily-tick-runner.checkin.plist" "$SCRIPT_DIR/com.daily-tick-runner.checkin.plist"
+    cp "/tmp/com.daily-tick-runner.checkout.plist" "$SCRIPT_DIR/com.daily-tick-runner.checkout.plist"
     
     success "plist 文件已更新"
 }
@@ -227,8 +227,8 @@ reload_launchd() {
         launchctl unload "$LAUNCH_AGENTS_DIR/com.daily-tick-runner.checkout.plist" 2>/dev/null || true
         
         # 複製新的 plist 文件
-        cp "$SCRIPTS_ROOT/config/templates/checkin.plist.template" "$LAUNCH_AGENTS_DIR/com.daily-tick-runner.checkin.plist"
-        cp "$SCRIPTS_ROOT/config/templates/checkout.plist.template" "$LAUNCH_AGENTS_DIR/com.daily-tick-runner.checkout.plist"
+        cp "$SCRIPT_DIR/com.daily-tick-runner.checkin.plist" "$LAUNCH_AGENTS_DIR/"
+        cp "$SCRIPT_DIR/com.daily-tick-runner.checkout.plist" "$LAUNCH_AGENTS_DIR/"
         
         # 載入新任務
         launchctl load "$LAUNCH_AGENTS_DIR/com.daily-tick-runner.checkin.plist"
@@ -280,7 +280,7 @@ interactive_update() {
         success "時間設定已更新完成！"
         echo
         echo "新的設定:"
-        source "$SCRIPTS_ROOT/config/time-config.sh"
+        source "$SCRIPT_DIR/time-config.sh"
         show_config
     else
         info "取消更新"

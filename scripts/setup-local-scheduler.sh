@@ -1,3 +1,4 @@
+
 #!/bin/bash
 
 # 本機定時打卡設定腳本
@@ -8,8 +9,7 @@ set -euo pipefail
 
 # 配置
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SCRIPTS_ROOT="$(dirname "$SCRIPT_DIR")"
-PROJECT_DIR="$(dirname "$SCRIPTS_ROOT")"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 LAUNCH_AGENTS_DIR="$HOME/Library/LaunchAgents"
 LOG_DIR="$HOME/.daily-tick-runner/logs"
 
