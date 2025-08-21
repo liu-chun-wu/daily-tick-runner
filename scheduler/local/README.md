@@ -20,8 +20,8 @@ gh auth login
 ### 2. 安裝定時任務
 
 ```bash
-# 進入 scripts 目錄
-cd scripts
+# 進入 scheduler/local 目錄
+cd scheduler/local
 
 # 安裝定時任務
 ./setup-local-scheduler.sh install
