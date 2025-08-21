@@ -14,16 +14,15 @@ on:
       action_type:
         description: '打卡類型'
         required: true
-        default: 'both'
+        default: 'checkin'
         type: choice
         options:
-          - checkin    # 只簽到
-          - checkout   # 只簽退
-          - both       # 簽到+簽退
+          - checkin    # 簽到
+          - checkout   # 簽退
       log_level:
         description: '日誌等級'
         required: false
-        default: 'INFO'
+        default: 'DEBUG'
         type: choice
         options:
           - DEBUG
@@ -80,8 +79,8 @@ jobs:
               ACTION_TYPE="checkout"  
               echo "下午時段，執行簽退"
             else
-              ACTION_TYPE="both"
-              echo "其他時段，執行完整流程"
+              ACTION_TYPE=""  # 默認不執行
+              echo "非打卡時間，不執行任何操作"
             fi
           fi
           
@@ -107,7 +106,7 @@ jobs:
           npx playwright test --project=setup --workers=1
 
       - name: ✅ 執行簽到（含重試機制）
-        if: steps.determine-action.outputs.action_type == 'checkin' || steps.determine-action.outputs.action_type == 'both'
+        if: steps.determine-action.outputs.action_type == 'checkin'
         uses: nick-fields/retry@v3
         with:
           timeout_minutes: 15
@@ -132,14 +131,8 @@ jobs:
           LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
           LOG_LEVEL: ${{ github.event.inputs.log_level || 'INFO' }}
 
-      - name: ⏰ 簽到簽退間隔 (如果需要執行兩者)
-        if: steps.determine-action.outputs.action_type == 'both'
-        run: |
-          echo "⏰ 等待 30 秒後執行簽退..."
-          sleep 30
-
       - name: ❌ 執行簽退（含重試機制）
-        if: steps.determine-action.outputs.action_type == 'checkout' || steps.determine-action.outputs.action_type == 'both'
+        if: steps.determine-action.outputs.action_type == 'checkout'
         uses: nick-fields/retry@v3
         with:
           timeout_minutes: 15
@@ -182,16 +175,5 @@ jobs:
           if [ -n "$DISCORD_WEBHOOK_URL" ]; then
             curl -H "Content-Type: application/json" \
                  -d "{\"content\":\"🚨 **正式自動打卡失敗**\n📅 日期: $(TZ='Asia/Taipei' date '+%Y-%m-%d')\n⏰ 時間: ${{ steps.determine-action.outputs.taipei_time }}\n🎯 執行類型: ${{ steps.determine-action.outputs.action_type }}\n🔗 查看詳情: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" \
-                 "$DISCORD_WEBHOOK_URL" || echo "Discord 通知發送失敗"
-          fi
-
-      - name: ✅ Success notification
-        if: success()
-        env:
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-        run: |
-          if [ -n "$DISCORD_WEBHOOK_URL" ]; then
-            curl -H "Content-Type: application/json" \
-                 -d "{\"content\":\"✅ **自動打卡完成**\n📅 日期: $(TZ='Asia/Taipei' date '+%Y-%m-%d')\n⏰ 時間: ${{ steps.determine-action.outputs.taipei_time }}\n🎯 執行類型: ${{ steps.determine-action.outputs.action_type }}\"}" \
                  "$DISCORD_WEBHOOK_URL" || echo "Discord 通知發送失敗"
           fi
