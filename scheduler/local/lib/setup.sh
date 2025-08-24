@@ -277,11 +277,34 @@ show_status() {
     
     echo
     
-    # 顯示下次預定執行時間
-    info "排程時間:"
+    # 顯示時間窗口狀態
+    info "時間窗口狀態:"
     source "$SCRIPT_DIR/../config/schedule.conf" 2>/dev/null || true
-    echo "  簽到: 週一至週五 $(format_time $CHECKIN_HOUR $CHECKIN_MINUTE)"
-    echo "  簽退: 週一至週五 $(format_time $CHECKOUT_HOUR $CHECKOUT_MINUTE)"
+    
+    local current_hour=$(date +%H | sed 's/^0//')
+    local current_minute=$(date +%M | sed 's/^0//')
+    local current_time=$(printf "%02d:%02d" $current_hour $current_minute)
+    local day_of_week=$(date +%u)
+    
+    echo "  當前時間: $current_time"
+    
+    # 檢查是否在時間窗口內
+    if is_workday; then
+        if [[ $current_hour -ge $CHECKIN_START_HOUR && $current_hour -le $CHECKIN_END_HOUR ]]; then
+            echo "  ✅ 當前在簽到窗口內 (${CHECKIN_START_HOUR}:00-${CHECKIN_END_HOUR}:00)"
+        elif [[ $current_hour -ge $CHECKOUT_START_HOUR && $current_hour -le $CHECKOUT_END_HOUR ]]; then
+            echo "  ✅ 當前在簽退窗口內 (${CHECKOUT_START_HOUR}:00-${CHECKOUT_END_HOUR}:00)"
+        else
+            echo "  ⏸ 當前不在任何打卡窗口內"
+        fi
+    else
+        echo "  📅 今天不是工作日"
+    fi
+    
+    echo
+    info "排程時間:"
+    echo "  簽到: 週一至週五 $(format_time $CHECKIN_HOUR $CHECKIN_MINUTE) (窗口: ${CHECKIN_START_HOUR}:00-${CHECKIN_END_HOUR}:00)"
+    echo "  簽退: 週一至週五 $(format_time $CHECKOUT_HOUR $CHECKOUT_MINUTE) (窗口: ${CHECKOUT_START_HOUR}:00-${CHECKOUT_END_HOUR}:00)"
     
     # 計算下次執行時間
     local current_hour=$(date +%H)
@@ -324,7 +347,7 @@ test_script() {
     
     check_requirements
     
-    info "執行測試運行..."
+    info "執行測試運行（檢查時間窗口並觸發）..."
     "$SCRIPT_DIR/../bin/trigger.sh"
     
     success "測試完成"

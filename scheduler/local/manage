@@ -58,9 +58,11 @@ show_help() {
     echo "  start           啟動排程 (等同 install)"
     echo "  stop            停止排程 (等同 uninstall)"
     echo "  status          查看排程狀態"
+    echo "  check-time      檢查當前時間窗口"
+    echo "  dispatch        直接觸發workflow"
     echo "  logs [選項]     查看日誌"
     echo "  update-time     更新執行時間設定"
-    echo "  test            測試執行打卡腳本"
+    echo "  test            測試執行（檢查時間窗口）"
     echo "  help            顯示此幫助訊息"
     echo
     echo "日誌選項:"
@@ -73,11 +75,14 @@ show_help() {
     echo "  cleanup [天數]  清理舊日誌 (預設保留 30 天)"
     echo
     echo "範例:"
-    echo "  $0 install              # 安裝定時打卡"
-    echo "  $0 status               # 查看狀態"
-    echo "  $0 logs latest          # 查看最新日誌"
-    echo "  $0 logs search ERROR    # 搜尋錯誤訊息"
-    echo "  $0 update-time          # 更新執行時間"
+    echo "  $0 install                     # 安裝定時打卡"
+    echo "  $0 status                      # 查看狀態"
+    echo "  $0 check-time                  # 檢查時間窗口"
+    echo "  $0 dispatch checkin            # 直接觸發簽到"
+    echo "  $0 dispatch checkout production # 觸發正式簽退"
+    echo "  $0 logs latest                 # 查看最新日誌"
+    echo "  $0 logs search ERROR           # 搜尋錯誤訊息"
+    echo "  $0 update-time                 # 更新執行時間"
 }
 
 # 執行安裝
@@ -101,6 +106,16 @@ do_status() {
 do_test() {
     info "執行測試..."
     "$LIB_DIR/setup.sh" test
+}
+
+# 檢查時間窗口
+do_check_time() {
+    "$LIB_DIR/time-checker.sh" full
+}
+
+# 直接觸發 workflow
+do_dispatch() {
+    "$SCRIPT_DIR/bin/dispatch.sh" "$@"
 }
 
 # 更新時間設定
@@ -202,6 +217,19 @@ main() {
             ;;
         "test")
             do_test
+            ;;
+        "check-time")
+            do_check_time
+            ;;
+        "dispatch")
+            if [[ $# -eq 0 ]]; then
+                error "dispatch 命令需要參數"
+                echo "用法: $0 dispatch <action_type> [workflow] [log_level]"
+                echo "範例: $0 dispatch checkin"
+                echo "查看幫助: $0 dispatch help"
+                exit 1
+            fi
+            do_dispatch "$@"
             ;;
         "help"|"-h"|"--help")
             show_help
