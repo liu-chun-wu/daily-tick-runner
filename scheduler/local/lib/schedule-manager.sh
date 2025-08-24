@@ -37,7 +37,7 @@ error() {
 }
 
 # 載入當前配置
-source "$SCRIPT_DIR/time-config.sh"
+source "$SCRIPT_DIR/../config/schedule.conf"
 
 # 顯示當前配置
 show_current_config() {
@@ -55,27 +55,27 @@ update_config_file() {
     local new_checkout_minute="$4"
     
     # 備份原配置
-    cp "$SCRIPT_DIR/time-config.sh" "$SCRIPT_DIR/time-config.sh.bak"
+    cp "$SCRIPT_DIR/../config/schedule.conf" "$SCRIPT_DIR/../config/schedule.conf.bak"
     
     # 更新簽到時間
-    sed -i '' "s/^CHECKIN_HOUR=.*/CHECKIN_HOUR=$new_checkin_hour/" "$SCRIPT_DIR/time-config.sh"
-    sed -i '' "s/^CHECKIN_MINUTE=.*/CHECKIN_MINUTE=$new_checkin_minute/" "$SCRIPT_DIR/time-config.sh"
+    sed -i '' "s/^CHECKIN_HOUR=.*/CHECKIN_HOUR=$new_checkin_hour/" "$SCRIPT_DIR/../config/schedule.conf"
+    sed -i '' "s/^CHECKIN_MINUTE=.*/CHECKIN_MINUTE=$new_checkin_minute/" "$SCRIPT_DIR/../config/schedule.conf"
     
     # 更新簽到窗口 (前後各1小時)
     local checkin_start=$((new_checkin_hour - 1))
     local checkin_end=$((new_checkin_hour + 2))
-    sed -i '' "s/^CHECKIN_START_HOUR=.*/CHECKIN_START_HOUR=$checkin_start/" "$SCRIPT_DIR/time-config.sh"
-    sed -i '' "s/^CHECKIN_END_HOUR=.*/CHECKIN_END_HOUR=$checkin_end/" "$SCRIPT_DIR/time-config.sh"
+    sed -i '' "s/^CHECKIN_START_HOUR=.*/CHECKIN_START_HOUR=$checkin_start/" "$SCRIPT_DIR/../config/schedule.conf"
+    sed -i '' "s/^CHECKIN_END_HOUR=.*/CHECKIN_END_HOUR=$checkin_end/" "$SCRIPT_DIR/../config/schedule.conf"
     
     # 更新簽退時間
-    sed -i '' "s/^CHECKOUT_HOUR=.*/CHECKOUT_HOUR=$new_checkout_hour/" "$SCRIPT_DIR/time-config.sh"
-    sed -i '' "s/^CHECKOUT_MINUTE=.*/CHECKOUT_MINUTE=$new_checkout_minute/" "$SCRIPT_DIR/time-config.sh"
+    sed -i '' "s/^CHECKOUT_HOUR=.*/CHECKOUT_HOUR=$new_checkout_hour/" "$SCRIPT_DIR/../config/schedule.conf"
+    sed -i '' "s/^CHECKOUT_MINUTE=.*/CHECKOUT_MINUTE=$new_checkout_minute/" "$SCRIPT_DIR/../config/schedule.conf"
     
     # 更新簽退窗口 (前後各1小時)
     local checkout_start=$((new_checkout_hour - 1))
     local checkout_end=$((new_checkout_hour + 1))
-    sed -i '' "s/^CHECKOUT_START_HOUR=.*/CHECKOUT_START_HOUR=$checkout_start/" "$SCRIPT_DIR/time-config.sh"
-    sed -i '' "s/^CHECKOUT_END_HOUR=.*/CHECKOUT_END_HOUR=$checkout_end/" "$SCRIPT_DIR/time-config.sh"
+    sed -i '' "s/^CHECKOUT_START_HOUR=.*/CHECKOUT_START_HOUR=$checkout_start/" "$SCRIPT_DIR/../config/schedule.conf"
+    sed -i '' "s/^CHECKOUT_END_HOUR=.*/CHECKOUT_END_HOUR=$checkout_end/" "$SCRIPT_DIR/../config/schedule.conf"
     
     success "配置文件已更新"
 }
@@ -92,7 +92,7 @@ update_plist_files() {
     # 創建臨時 plist 文件
     
     # 簽到 plist
-    cat > "/tmp/com.daily-tick-runner.checkin.plist" << EOF
+    cat > "$SCRIPT_DIR/../config/launchd/checkin.plist" << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -102,7 +102,7 @@ update_plist_files() {
     
     <key>ProgramArguments</key>
     <array>
-        <string>$SCRIPT_DIR/auto-punch.sh</string>
+        <string>$SCRIPT_DIR/../bin/trigger.sh</string>
     </array>
     
     <key>StartCalendarInterval</key>
@@ -111,7 +111,7 @@ EOF
     
     # 添加週一到週五
     for day in 1 2 3 4 5; do
-        cat >> "/tmp/com.daily-tick-runner.checkin.plist" << EOF
+        cat >> "$SCRIPT_DIR/../config/launchd/checkin.plist" << EOF
         <dict>
             <key>Hour</key>
             <integer>$checkin_hour</integer>
@@ -123,7 +123,7 @@ EOF
 EOF
     done
     
-    cat >> "/tmp/com.daily-tick-runner.checkin.plist" << EOF
+    cat >> "$SCRIPT_DIR/../config/launchd/checkin.plist" << EOF
     </array>
     
     <key>StandardOutPath</key>
@@ -139,7 +139,7 @@ EOF
     <false/>
     
     <key>WorkingDirectory</key>
-    <string>$(dirname "$SCRIPT_DIR")</string>
+    <string>$(dirname "$(dirname "$SCRIPT_DIR")")</string>
     
     <key>EnvironmentVariables</key>
     <dict>
@@ -151,7 +151,7 @@ EOF
 EOF
     
     # 簽退 plist
-    cat > "/tmp/com.daily-tick-runner.checkout.plist" << EOF
+    cat > "$SCRIPT_DIR/../config/launchd/checkout.plist" << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -161,7 +161,7 @@ EOF
     
     <key>ProgramArguments</key>
     <array>
-        <string>$SCRIPT_DIR/auto-punch.sh</string>
+        <string>$SCRIPT_DIR/../bin/trigger.sh</string>
     </array>
     
     <key>StartCalendarInterval</key>
@@ -170,7 +170,7 @@ EOF
     
     # 添加週一到週五
     for day in 1 2 3 4 5; do
-        cat >> "/tmp/com.daily-tick-runner.checkout.plist" << EOF
+        cat >> "$SCRIPT_DIR/../config/launchd/checkout.plist" << EOF
         <dict>
             <key>Hour</key>
             <integer>$checkout_hour</integer>
@@ -182,7 +182,7 @@ EOF
 EOF
     done
     
-    cat >> "/tmp/com.daily-tick-runner.checkout.plist" << EOF
+    cat >> "$SCRIPT_DIR/../config/launchd/checkout.plist" << EOF
     </array>
     
     <key>StandardOutPath</key>
@@ -198,7 +198,7 @@ EOF
     <false/>
     
     <key>WorkingDirectory</key>
-    <string>$(dirname "$SCRIPT_DIR")</string>
+    <string>$(dirname "$(dirname "$SCRIPT_DIR")")</string>
     
     <key>EnvironmentVariables</key>
     <dict>
@@ -209,9 +209,7 @@ EOF
 </plist>
 EOF
     
-    # 更新 scripts 目錄中的 plist 文件
-    cp "/tmp/com.daily-tick-runner.checkin.plist" "$SCRIPT_DIR/com.daily-tick-runner.checkin.plist"
-    cp "/tmp/com.daily-tick-runner.checkout.plist" "$SCRIPT_DIR/com.daily-tick-runner.checkout.plist"
+    # plist 文件已直接生成在 config/launchd 目錄中
     
     success "plist 文件已更新"
 }
@@ -220,6 +218,37 @@ EOF
 reload_launchd() {
     info "重新載入 launchd 任務..."
     
+    # 檢查是否在打卡時間窗口內
+    local current_hour=$(date +%H)
+    local current_minute=$(date +%M)
+    
+    # 載入配置以獲取時間窗口
+    source "$SCRIPT_DIR/../config/schedule.conf"
+    
+    # 檢查是否在簽到時間窗口
+    if [[ $current_hour -ge $CHECKIN_START_HOUR && $current_hour -le $CHECKIN_END_HOUR ]]; then
+        warning "目前在簽到時間窗口內 (${CHECKIN_START_HOUR}:00-${CHECKIN_END_HOUR}:00)"
+        warning "更新配置可能會影響正在執行的打卡任務"
+        read -p "確定要繼續嗎? (y/N): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            info "取消更新"
+            return 1
+        fi
+    fi
+    
+    # 檢查是否在簽退時間窗口
+    if [[ $current_hour -ge $CHECKOUT_START_HOUR && $current_hour -le $CHECKOUT_END_HOUR ]]; then
+        warning "目前在簽退時間窗口內 (${CHECKOUT_START_HOUR}:00-${CHECKOUT_END_HOUR}:00)"
+        warning "更新配置可能會影響正在執行的打卡任務"
+        read -p "確定要繼續嗎? (y/N): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            info "取消更新"
+            return 1
+        fi
+    fi
+    
     # 檢查是否已安裝
     if [[ -f "$LAUNCH_AGENTS_DIR/com.daily-tick-runner.checkin.plist" ]]; then
         # 卸載舊任務
@@ -227,8 +256,8 @@ reload_launchd() {
         launchctl unload "$LAUNCH_AGENTS_DIR/com.daily-tick-runner.checkout.plist" 2>/dev/null || true
         
         # 複製新的 plist 文件
-        cp "$SCRIPT_DIR/com.daily-tick-runner.checkin.plist" "$LAUNCH_AGENTS_DIR/"
-        cp "$SCRIPT_DIR/com.daily-tick-runner.checkout.plist" "$LAUNCH_AGENTS_DIR/"
+        cp "$SCRIPT_DIR/../config/launchd/checkin.plist" "$LAUNCH_AGENTS_DIR/com.daily-tick-runner.checkin.plist"
+        cp "$SCRIPT_DIR/../config/launchd/checkout.plist" "$LAUNCH_AGENTS_DIR/com.daily-tick-runner.checkout.plist"
         
         # 載入新任務
         launchctl load "$LAUNCH_AGENTS_DIR/com.daily-tick-runner.checkin.plist"
@@ -236,7 +265,7 @@ reload_launchd() {
         
         success "launchd 任務已重新載入"
     else
-        warning "launchd 任務尚未安裝，請先執行: ./setup-local-scheduler.sh install"
+        warning "launchd 任務尚未安裝，請先執行: ../manage install"
     fi
 }
 
@@ -280,7 +309,7 @@ interactive_update() {
         success "時間設定已更新完成！"
         echo
         echo "新的設定:"
-        source "$SCRIPT_DIR/time-config.sh"
+        source "$SCRIPT_DIR/../config/schedule.conf"
         show_config
     else
         info "取消更新"

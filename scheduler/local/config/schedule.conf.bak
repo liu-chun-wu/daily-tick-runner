@@ -1,0 +1,82 @@
+
+#!/bin/bash
+
+# 定時打卡時間配置
+# 作者: Claude Code
+# 用途: 集中管理所有時間相關設定
+
+# ============================
+# 簽到時間設定
+# ============================
+CHECKIN_HOUR=8
+CHECKIN_MINUTE=15
+
+# 簽到時間窗口 (用於判斷是否該執行簽到)
+CHECKIN_START_HOUR=7
+CHECKIN_END_HOUR=10
+
+# ============================
+# 簽退時間設定
+# ============================
+CHECKOUT_HOUR=18
+CHECKOUT_MINUTE=0
+
+# 簽退時間窗口 (用於判斷是否該執行簽退)
+CHECKOUT_START_HOUR=17
+CHECKOUT_END_HOUR=19
+
+# ============================
+# 工作日設定
+# ============================
+# 1=週一, 2=週二, 3=週三, 4=週四, 5=週五, 6=週六, 7=週日
+WORKDAYS=(1 2 3 4 5)    # 預設週一到週五
+
+# ============================
+# 輔助函數
+# ============================
+
+# 檢查是否為工作日
+is_workday() {
+    local day_of_week=$(date +%u)  # 1=Monday, 7=Sunday
+    for workday in "${WORKDAYS[@]}"; do
+        if [[ $day_of_week -eq $workday ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+# 格式化時間顯示
+format_time() {
+    printf "%02d:%02d" "$1" "$2"
+}
+
+# 顯示當前配置
+show_config() {
+    echo "當前時間配置:"
+    echo "=============="
+    echo "簽到時間: $(format_time $CHECKIN_HOUR $CHECKIN_MINUTE)"
+    echo "簽到窗口: ${CHECKIN_START_HOUR}:00 - ${CHECKIN_END_HOUR}:00"
+    echo ""
+    echo "簽退時間: $(format_time $CHECKOUT_HOUR $CHECKOUT_MINUTE)"
+    echo "簽退窗口: ${CHECKOUT_START_HOUR}:00 - ${CHECKOUT_END_HOUR}:00"
+    echo ""
+    echo -n "工作日: "
+    for day in "${WORKDAYS[@]}"; do
+        case $day in
+            1) echo -n "週一 " ;;
+            2) echo -n "週二 " ;;
+            3) echo -n "週三 " ;;
+            4) echo -n "週四 " ;;
+            5) echo -n "週五 " ;;
+            6) echo -n "週六 " ;;
+            7) echo -n "週日 " ;;
+        esac
+    done
+    echo
+}
+
+# 如果直接執行此配置文件，顯示當前配置
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    show_config
+fi

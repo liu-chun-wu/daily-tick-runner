@@ -14,7 +14,7 @@ LOG_FILE="$LOG_DIR/auto-punch-$(date +%Y%m).log"
 WORKFLOW_NAME="正式排程 - 自動打卡"
 
 # 載入時間配置
-source "$SCRIPT_DIR/time-config.sh"
+source "$SCRIPT_DIR/../config/schedule.conf"
 
 # 建立日誌目錄
 mkdir -p "$LOG_DIR"
@@ -113,45 +113,73 @@ trigger_workflow() {
     local action_type="$1"
     local log_level="${2:-INFO}"
     
+    # 重試配置
+    local MAX_RETRIES=3
+    local RETRY_DELAY=10
+    local attempt=0
+    local success=false
+    
     log_info "準備觸發 workflow: action_type=$action_type, log_level=$log_level"
     
-    # 觸發 GitHub Actions workflow
-    log_debug "執行命令: gh workflow run \"$WORKFLOW_NAME\" --field action_type=\"$action_type\" --field log_level=\"$log_level\""
-    
-    if gh workflow run "$WORKFLOW_NAME" \
-        --field action_type="$action_type" \
-        --field log_level="$log_level" 2>&1 | tee -a "$LOG_FILE"; then
-        log_info "成功觸發 workflow: $action_type"
+    # 重試循環
+    while [[ $attempt -lt $MAX_RETRIES ]]; do
+        attempt=$((attempt + 1))
         
-        # 等待一下再查看狀態
-        sleep 5
+        log_debug "執行命令: gh workflow run \"$WORKFLOW_NAME\" --field action_type=\"$action_type\" --field log_level=\"$log_level\" (第 $attempt/$MAX_RETRIES 次嘗試)"
         
-        # 顯示最新的 workflow run
-        log_info "最新的 workflow 執行狀態:"
-        if gh run list --workflow="$WORKFLOW_NAME" --limit=1 2>&1 | tee -a "$LOG_FILE"; then
-            log_debug "成功查詢 workflow 執行狀態"
+        if gh workflow run "$WORKFLOW_NAME" \
+            --field action_type="$action_type" \
+            --field log_level="$log_level" 2>&1 | tee -a "$LOG_FILE"; then
+            
+            log_info "成功觸發 workflow: $action_type (第 $attempt 次嘗試)"
+            success=true
+            
+            # 等待一下再查看狀態
+            sleep 5
+            
+            # 顯示最新的 workflow run
+            log_info "最新的 workflow 執行狀態:"
+            if gh run list --workflow="$WORKFLOW_NAME" --limit=1 2>&1 | tee -a "$LOG_FILE"; then
+                log_debug "成功查詢 workflow 執行狀態"
+            else
+                log_warning "查詢 workflow 狀態時發生錯誤，但觸發成功"
+            fi
+            
+            break
         else
-            log_warning "查詢 workflow 狀態時發生錯誤，但觸發成功"
+            local exit_code=$?
+            
+            if [[ $attempt -lt $MAX_RETRIES ]]; then
+                log_warning "觸發 workflow 失敗 (退出碼: $exit_code)，$RETRY_DELAY 秒後重試 (第 $attempt/$MAX_RETRIES 次)"
+                
+                # 檢查網路連線
+                if ! ping -c 1 github.com &>/dev/null; then
+                    log_warning "檢測到網路連線問題，等待恢復..."
+                fi
+                
+                sleep $RETRY_DELAY
+            else
+                log_error "觸發 workflow 失敗: $action_type (退出碼: $exit_code)，已達最大重試次數"
+                log_error "可能原因:"
+                log_error "1. GitHub CLI 權限不足"
+                log_error "2. Workflow 名稱錯誤: '$WORKFLOW_NAME'"
+                log_error "3. Repository 權限問題"
+                log_error "4. 持續的網路連線問題"
+                
+                # 嘗試列出可用的 workflows 來診斷問題
+                log_info "嘗試列出可用的 workflows 進行診斷:"
+                if gh workflow list 2>&1 | tee -a "$LOG_FILE"; then
+                    log_debug "成功列出 workflows"
+                else
+                    log_error "無法列出 workflows，可能是 GitHub CLI 或權限問題"
+                fi
+            fi
         fi
-        
+    done
+    
+    if [[ "$success" == "true" ]]; then
         return 0
     else
-        local exit_code=$?
-        log_error "觸發 workflow 失敗: $action_type (退出碼: $exit_code)"
-        log_error "可能原因:"
-        log_error "1. GitHub CLI 權限不足"
-        log_error "2. Workflow 名稱錯誤: '$WORKFLOW_NAME'"
-        log_error "3. Repository 權限問題"
-        log_error "4. 網路連線問題"
-        
-        # 嘗試列出可用的 workflows 來診斷問題
-        log_info "可用的 workflows:"
-        if gh workflow list 2>&1 | tee -a "$LOG_FILE"; then
-            log_debug "成功列出 workflows"
-        else
-            log_error "無法列出 workflows，可能是 GitHub CLI 或權限問題"
-        fi
-        
         return 1
     fi
 }

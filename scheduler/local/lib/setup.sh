@@ -13,8 +13,8 @@ PROJECT_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
 LAUNCH_AGENTS_DIR="$HOME/Library/LaunchAgents"
 LOG_DIR="$HOME/.daily-tick-runner/logs"
 
-CHECKIN_PLIST="com.daily-tick-runner.checkin.plist"
-CHECKOUT_PLIST="com.daily-tick-runner.checkout.plist"
+CHECKIN_PLIST="checkin.plist"
+CHECKOUT_PLIST="checkout.plist"
 
 # 顏色輸出
 RED='\033[0;31m'
@@ -61,15 +61,15 @@ check_requirements() {
     fi
     
     # 檢查腳本是否存在
-    if [[ ! -f "$SCRIPT_DIR/auto-punch.sh" ]]; then
-        error "自動打卡腳本不存在: $SCRIPT_DIR/auto-punch.sh"
+    if [[ ! -f "$SCRIPT_DIR/../bin/trigger.sh" ]]; then
+        error "自動打卡腳本不存在: $SCRIPT_DIR/../bin/trigger.sh"
         exit 1
     fi
     
     # 檢查腳本是否可執行
-    if [[ ! -x "$SCRIPT_DIR/auto-punch.sh" ]]; then
+    if [[ ! -x "$SCRIPT_DIR/../bin/trigger.sh" ]]; then
         warning "自動打卡腳本不可執行，正在設定執行權限..."
-        chmod +x "$SCRIPT_DIR/auto-punch.sh"
+        chmod +x "$SCRIPT_DIR/../bin/trigger.sh"
     fi
     
     success "系統需求檢查完成"
@@ -91,7 +91,7 @@ update_plist_paths() {
     local temp_file="/tmp/$(basename "$plist_file")"
     
     # 替換路徑中的用戶名
-    sed "s|/Users/jeffery.liu|$HOME|g" "$SCRIPT_DIR/$plist_file" > "$temp_file"
+    sed "s|/Users/jeffery.liu|$HOME|g" "$SCRIPT_DIR/../config/launchd/$plist_file" > "$temp_file"
     
     # 替換專案路徑
     sed -i '' "s|/Users/jeffery.liu/Desktop/daily-tick-runner|$PROJECT_DIR|g" "$temp_file"
@@ -102,6 +102,22 @@ update_plist_paths() {
 # 安裝定時任務
 install_scheduler() {
     info "安裝本機定時打卡任務..."
+    
+    # 檢查是否已經安裝
+    if launchctl list | grep -q "com.daily-tick-runner"; then
+        warning "檢測到已存在的定時任務"
+        echo "已安裝的任務:"
+        launchctl list | grep "daily-tick-runner" || true
+        echo
+        read -p "是否要重新安裝? (y/N): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            info "取消安裝"
+            return 0
+        fi
+        info "正在卸載舊的任務..."
+        uninstall_scheduler
+    fi
     
     check_requirements
     create_directories
@@ -119,8 +135,33 @@ install_scheduler() {
     rm "$checkout_temp"
     
     # 載入任務
-    launchctl load "$LAUNCH_AGENTS_DIR/$CHECKIN_PLIST" 2>/dev/null || true
-    launchctl load "$LAUNCH_AGENTS_DIR/$CHECKOUT_PLIST" 2>/dev/null || true
+    info "載入 launchd 任務..."
+    
+    # 載入簽到任務
+    if launchctl load "$LAUNCH_AGENTS_DIR/$CHECKIN_PLIST" 2>&1; then
+        success "簽到任務載入成功"
+    else
+        if launchctl list | grep -q "com.daily-tick-runner.checkin"; then
+            warning "簽到任務已在運行中"
+        else
+            error "簽到任務載入失敗"
+            error "請檢查 plist 文件格式和權限"
+            return 1
+        fi
+    fi
+    
+    # 載入簽退任務
+    if launchctl load "$LAUNCH_AGENTS_DIR/$CHECKOUT_PLIST" 2>&1; then
+        success "簽退任務載入成功"
+    else
+        if launchctl list | grep -q "com.daily-tick-runner.checkout"; then
+            warning "簽退任務已在運行中"
+        else
+            error "簽退任務載入失敗"
+            error "請檢查 plist 文件格式和權限"
+            return 1
+        fi
+    fi
     
     success "定時任務安裝完成"
     info "簽到時間: 週一到週五 08:30"
@@ -188,11 +229,93 @@ show_status() {
     
     echo
     
+    # 檢查 GitHub CLI 狀態
+    info "GitHub CLI 狀態:"
+    if command -v gh &> /dev/null; then
+        if gh auth status &> /dev/null; then
+            echo "✅ GitHub CLI 已認證"
+            # 顯示當前登入的用戶
+            gh auth status 2>&1 | grep "Logged in" | head -1 || true
+        else
+            echo "❌ GitHub CLI 未認證 (請執行: gh auth login)"
+        fi
+    else
+        echo "❌ GitHub CLI 未安裝 (請執行: brew install gh)"
+    fi
+    
+    echo
+    
+    # 顯示最後執行時間
+    info "最近執行記錄:"
+    if [[ -d "$LOG_DIR" ]]; then
+        # 找最新的日誌文件
+        local latest_log=$(find "$LOG_DIR" -name "auto-punch-*.log" 2>/dev/null | sort | tail -1)
+        if [[ -n "$latest_log" && -f "$latest_log" ]]; then
+            # 顯示最後執行時間
+            local last_run=$(grep "自動打卡程序開始" "$latest_log" 2>/dev/null | tail -1 | cut -d' ' -f1-2)
+            if [[ -n "$last_run" ]]; then
+                echo "  最後執行時間: $last_run"
+            fi
+            
+            # 顯示最近的成功/失敗記錄
+            local recent_success=$(grep "自動打卡執行成功" "$latest_log" 2>/dev/null | tail -1)
+            local recent_error=$(grep "自動打卡執行失敗" "$latest_log" 2>/dev/null | tail -1)
+            
+            if [[ -n "$recent_success" ]]; then
+                echo "  最近成功: $(echo "$recent_success" | cut -d' ' -f1-2)"
+            fi
+            
+            if [[ -n "$recent_error" ]]; then
+                echo "  ⚠️  最近失敗: $(echo "$recent_error" | cut -d' ' -f1-2)"
+            fi
+        else
+            echo "  無執行記錄"
+        fi
+    else
+        echo "  無日誌目錄"
+    fi
+    
+    echo
+    
+    # 顯示下次預定執行時間
+    info "排程時間:"
+    source "$SCRIPT_DIR/../config/schedule.conf" 2>/dev/null || true
+    echo "  簽到: 週一至週五 $(format_time $CHECKIN_HOUR $CHECKIN_MINUTE)"
+    echo "  簽退: 週一至週五 $(format_time $CHECKOUT_HOUR $CHECKOUT_MINUTE)"
+    
+    # 計算下次執行時間
+    local current_hour=$(date +%H)
+    local current_minute=$(date +%M)
+    local day_of_week=$(date +%u)
+    
+    if [[ $day_of_week -le 5 ]]; then  # 工作日
+        if [[ $current_hour -lt $CHECKIN_HOUR ]] || 
+           [[ $current_hour -eq $CHECKIN_HOUR && $current_minute -lt $CHECKIN_MINUTE ]]; then
+            echo "  下次執行: 今日 $(format_time $CHECKIN_HOUR $CHECKIN_MINUTE) (簽到)"
+        elif [[ $current_hour -lt $CHECKOUT_HOUR ]] || 
+             [[ $current_hour -eq $CHECKOUT_HOUR && $current_minute -lt $CHECKOUT_MINUTE ]]; then
+            echo "  下次執行: 今日 $(format_time $CHECKOUT_HOUR $CHECKOUT_MINUTE) (簽退)"
+        else
+            # 明天
+            if [[ $day_of_week -eq 5 ]]; then
+                echo "  下次執行: 下週一 $(format_time $CHECKIN_HOUR $CHECKIN_MINUTE) (簽到)"
+            else
+                echo "  下次執行: 明日 $(format_time $CHECKIN_HOUR $CHECKIN_MINUTE) (簽到)"
+            fi
+        fi
+    else  # 週末
+        echo "  下次執行: 下週一 $(format_time $CHECKIN_HOUR $CHECKIN_MINUTE) (簽到)"
+    fi
+    
+    echo
+    
     # 顯示日誌位置
     info "日誌文件位置:"
     echo "  主日誌: $LOG_DIR/"
     echo "  簽到日誌: $LOG_DIR/checkin.log"
     echo "  簽退日誌: $LOG_DIR/checkout.log"
+    echo
+    echo "提示: 使用 './manage logs latest' 查看最新日誌"
 }
 
 # 測試腳本
@@ -202,7 +325,7 @@ test_script() {
     check_requirements
     
     info "執行測試運行..."
-    "$SCRIPT_DIR/auto-punch.sh"
+    "$SCRIPT_DIR/../bin/trigger.sh"
     
     success "測試完成"
 }
