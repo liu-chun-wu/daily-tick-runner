@@ -86,44 +86,102 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
-    container: mcr.microsoft.com/playwright:v1.54.0-noble   # 之後可改成自有映像
+    container: ghcr.io/liu-chun-wu/daily-tick-runner/runner:latest  # 使用自有映像（含中文字型）
+    timeout-minutes: 20
 
     steps:
-      - uses: actions/checkout@v4
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: '18'
           cache: 'npm'                    # 需有 package-lock.json / yarn.lock 才會生效
           cache-dependency-path: 'package-lock.json'
 
-      - name: Install deps
+      - name: 🔧 Install dependencies
         run: npm ci
 
-      - name: Type check
-        run: npx tsc --noEmit
-
-      - name: Lint (optional)
+      - name: 🔍 Lint (optional)
         run: npm run lint --if-present
 
-      # 若你不是跑在 Playwright 官方容器、而是 ubuntu 主機，可改用：
-      # - run: npx playwright install --with-deps
-      # Playwright CI 指南詳見官方文件
-      # https://playwright.dev/docs/ci
+      # Playwright 瀏覽器和中文字型已在容器中預裝，無需再安裝
 
-      - name: Run tests
-        run: npx playwright test --reporter=line
+      - name: 🔐 Setup and login
+        env:
+          BASE_URL: ${{ vars.BASE_URL || 'https://erpline.aoacloud.com.tw/' }}
+          COMPANY_CODE: ${{ vars.COMPANY_CODE || 'CYBERBIZ' }}
+          AOA_USERNAME: ${{ secrets.AOA_USERNAME }}
+          AOA_PASSWORD: ${{ secrets.AOA_PASSWORD }}
+          AOA_LAT: ${{ vars.AOA_LAT || '25.080869' }}
+          AOA_LON: ${{ vars.AOA_LON || '121.569862' }}
+          TZ: ${{ vars.TZ || 'Asia/Taipei' }}
+          LOCALE: ${{ vars.LOCALE || 'zh-TW' }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
+          LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
+          LOG_LEVEL: ${{ vars.LOG_LEVEL || 'INFO' }}
+        run: |
+          echo "🔍 開始環境檢查和登入設置..."
+          npx playwright test --project=setup --workers=1
 
-      - name: Upload test report & traces
-        if: always()
-        uses: actions/upload-artifact@v4
+      - name: 📢 Run notify tests (with retry)
+        uses: nick-fields/retry@v3
         with:
-          name: pw-report
+          timeout_minutes: 15
+          max_attempts: 3
+          retry_wait_seconds: 60
+          retry_on: error
+          command: |
+            echo "📢 開始執行通知測試..."
+            echo "⏰ 執行時間: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+            npx playwright test --project=notify --workers=1 --trace on
+        env:
+          # 環境變數設定（同上）
+      
+      - name: 🎯 Run chromium-smoke tests (with retry)
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 15
+          max_attempts: 3
+          retry_wait_seconds: 60
+          retry_on: error
+          command: |
+            echo "🎯 開始執行 smoke 測試..."
+            echo "⏰ 執行時間: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+            npx playwright test --project=chromium-smoke --workers=1 --trace on
+        env:
+          # 環境變數設定（同上）
+
+      - name: 📤 Upload test results (if failed)
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-results-${{ github.run_number }}
           path: |
+            test-results/
             playwright-report/
-            test-results/**
-            traces/**
           retention-days: 7
+
+      - name: 📊 Upload traces (if failed)
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: traces-${{ github.run_number }}
+          path: test-results/**/*.zip
+          retention-days: 3
+
+      - name: 🚨 Notify on failure
+        if: failure()
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          if [ -n "$DISCORD_WEBHOOK_URL" ]; then
+            curl -H "Content-Type: application/json" \
+                 -d "{\"content\":\"❌ **CI 測試失敗**\\n🔗 查看詳情: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" \
+                 "$DISCORD_WEBHOOK_URL" || echo "Discord 通知發送失敗"
+          fi
 ```
 
 > 參考：
@@ -291,6 +349,12 @@ updates:
 
 * **GHCR 認證方式？**
   在 GitHub Actions 內推送 GHCR，官方建議使用 `GITHUB_TOKEN`（workflow 權限需 `packages: write`）。([GitHub Docs][6])
+
+* **中文顯示問題？**
+  使用自有映像 `ghcr.io/liu-chun-wu/daily-tick-runner/runner:latest` 已包含中文字型。若使用官方 Playwright 映像，需安裝 `fonts-noto-cjk`。
+
+* **Flaky 測試？**
+  CI 已配置重試機制（每個測試最多 3 次）。若測試第一次失敗但重試後成功，Playwright 會標記為 "flaky" 但整體仍視為成功。
 
 ---
 

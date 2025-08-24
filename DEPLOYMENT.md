@@ -1,6 +1,6 @@
 # GitHub Actions 部署指南
 
-本專案使用 GitHub Actions 實現自動打卡功能，支援測試排程和正式排程兩種模式。
+本專案使用 GitHub Actions 實現完整的 CI/CD 流程，包含持續整合測試、自動打卡排程，以及容器化部署。
 
 ## 🚀 部署步驟
 
@@ -29,16 +29,46 @@
 | `TZ` | 時區設定 | `Asia/Taipei` | `Asia/Taipei` |
 | `LOCALE` | 語系設定 | `zh-TW` | `zh-TW` |
 
+## 🔄 CI/CD Workflows
+
+### 持續整合 (ci.yml)
+
+- **觸發條件**：Pull Request 和推送到 main 分支
+- **執行環境**：自有容器映像 `ghcr.io/liu-chun-wu/daily-tick-runner/runner:latest`
+- **測試流程**：
+  1. 環境設置與登入 (setup project)
+  2. 通知功能測試 (notify project)
+  3. Smoke 測試 (chromium-smoke project)
+- **特色功能**：
+  - 自動重試機制（每個測試最多 3 次）
+  - 失敗時自動上傳測試報告和 traces
+  - Discord 失敗通知
+  - 使用預裝中文字型的容器確保測試穩定
+
+### 容器映像建置 (build-image.yml)
+
+- **功能**：建置並推送容器映像到 GitHub Container Registry
+- **映像位置**：`ghcr.io/liu-chun-wu/daily-tick-runner/runner:latest`
+- **包含內容**：
+  - Playwright v1.49.0 及瀏覽器
+  - 中文字型支援 (fonts-noto-cjk)
+  - 時區設定 (Asia/Taipei)
+  - 所有專案依賴
+
 ## 🔄 排程模式
 
 ### 測試排程（test-schedule.yml）
 
-- **執行頻率**：每 5 分鐘一次
-- **功能**：執行真實打卡操作（chromium-click project）
+- **執行頻率**：預設關閉（可手動觸發）
+- **執行環境**：自有容器映像
+- **功能**：測試真實打卡操作
+- **手動觸發參數**：
+  - `test_type`：smoke（不點擊）或 click（真實點擊）
+  - `action_type`：checkin（簽到）或 checkout（簽退）
+  - `log_level`：DEBUG/INFO/WARN/ERROR
 - **用途**：測試自動化流程是否正常
-- **狀態**：預設啟用
 
-**注意**：測試期間會進行真實打卡！請確認測試時間不會影響正常打卡記錄。
+**注意**：選擇 click 模式會進行真實打卡！
 
 ### 正式排程（production-schedule.yml）
 

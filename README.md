@@ -1,5 +1,6 @@
 # 🤖 Daily Tick Runner - 自動化打卡系統
 
+![CI](https://github.com/liu-chun-wu/daily-tick-runner/actions/workflows/ci.yml/badge.svg)
 ![Playwright](https://img.shields.io/badge/Playwright-45ba4b?style=for-the-badge&logo=playwright&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)
 ![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-2088FF?style=for-the-badge&logo=github-actions&logoColor=white)
@@ -123,8 +124,10 @@ LINE_USER_ID=your_line_user_id
 
 ## 💻 使用方式
 
+### 本地開發測試
+
 ```bash
-# 環境檢查
+# 環境檢查與登入設置
 npm run test:setup
 
 # 執行 Smoke 測試（不實際點擊）
@@ -145,6 +148,21 @@ npm run test:all
 # UI 模式（互動式測試）
 npm run test:ui
 ```
+
+### CI/CD 自動化測試
+
+專案已配置完整的 CI/CD 流程：
+
+- **CI 測試**：每次 Pull Request 和推送到 main 分支時自動執行
+  - 自動登入設置
+  - 執行通知測試（notify）
+  - 執行 smoke 測試（chromium-smoke）
+  - 包含重試機制和失敗通知
+
+- **使用自有容器映像**：`ghcr.io/liu-chun-wu/daily-tick-runner/runner:latest`
+  - 預裝 Playwright 瀏覽器
+  - 包含中文字型支援
+  - 確保環境一致性
 
 ### GitHub Actions 部署
 
@@ -167,7 +185,16 @@ npm run test:ui
    - `AOA_LAT`
    - `AOA_LON`
 
-3. **啟用排程**
+3. **CI/CD Workflows**
+   
+   專案包含以下自動化 workflows：
+   
+   - **ci.yml**：Pull Request 和 main 分支的持續整合測試
+   - **test-schedule.yml**：測試用排程（可手動觸發）
+   - **production-schedule.yml**：正式排程（每日簽到簽退）
+   - **build-image.yml**：建置並推送容器映像到 GHCR
+
+4. **啟用排程**
    
    - 測試排程：編輯 `.github/workflows/test-schedule.yml`，取消 schedule 註解
    - 正式排程：編輯 `.github/workflows/production-schedule.yml`，啟用 schedule
