@@ -9,7 +9,7 @@
 # 簽到時間設定
 # ============================
 CHECKIN_HOUR=8
-CHECKIN_MINUTE=15
+CHECKIN_MINUTE=29
 
 # 簽到時間窗口 (用於判斷是否該執行簽到)
 CHECKIN_START_HOUR=7

@@ -250,18 +250,18 @@ reload_launchd() {
     fi
     
     # 檢查是否已安裝
-    if [[ -f "$LAUNCH_AGENTS_DIR/com.daily-tick-runner.checkin.plist" ]]; then
+    if [[ -f "$LAUNCH_AGENTS_DIR/checkin.plist" ]]; then
         # 卸載舊任務
-        launchctl unload "$LAUNCH_AGENTS_DIR/com.daily-tick-runner.checkin.plist" 2>/dev/null || true
-        launchctl unload "$LAUNCH_AGENTS_DIR/com.daily-tick-runner.checkout.plist" 2>/dev/null || true
+        launchctl unload "$LAUNCH_AGENTS_DIR/checkin.plist" 2>/dev/null || true
+        launchctl unload "$LAUNCH_AGENTS_DIR/checkout.plist" 2>/dev/null || true
         
         # 複製新的 plist 文件
-        cp "$SCRIPT_DIR/../config/launchd/checkin.plist" "$LAUNCH_AGENTS_DIR/com.daily-tick-runner.checkin.plist"
-        cp "$SCRIPT_DIR/../config/launchd/checkout.plist" "$LAUNCH_AGENTS_DIR/com.daily-tick-runner.checkout.plist"
+        cp "$SCRIPT_DIR/../config/launchd/checkin.plist" "$LAUNCH_AGENTS_DIR/checkin.plist"
+        cp "$SCRIPT_DIR/../config/launchd/checkout.plist" "$LAUNCH_AGENTS_DIR/checkout.plist"
         
         # 載入新任務
-        launchctl load "$LAUNCH_AGENTS_DIR/com.daily-tick-runner.checkin.plist"
-        launchctl load "$LAUNCH_AGENTS_DIR/com.daily-tick-runner.checkout.plist"
+        launchctl load "$LAUNCH_AGENTS_DIR/checkin.plist"
+        launchctl load "$LAUNCH_AGENTS_DIR/checkout.plist"
         
         success "launchd 任務已重新載入"
     else
