@@ -61,7 +61,8 @@ check_requirements() {
 
 # 判斷執行動作 - 只返回結果，不輸出日誌
 get_action_type() {
-    local current_hour=$(date +%H)
+    local current_hour=$(date +%H | sed 's/^0//')
+    local current_minute=$(date +%M | sed 's/^0//')
     local day_of_week=$(date +%u)  # 1=Monday, 7=Sunday
     
     # 檢查是否為工作日
@@ -69,11 +70,24 @@ get_action_type() {
         return 1
     fi
     
-    # 判斷時間窗口
-    if [[ $current_hour -ge $CHECKIN_START_HOUR && $current_hour -le $CHECKIN_END_HOUR ]]; then
+    # 計算當前時間的總分鐘數
+    local current_total_minutes=$((current_hour * 60 + current_minute))
+    
+    # 使用動態計算的簽到時間窗口
+    local checkin_bounds=($(get_checkin_window))
+    local checkin_start=${checkin_bounds[0]}
+    local checkin_end=${checkin_bounds[1]}
+    
+    # 使用動態計算的簽退時間窗口
+    local checkout_bounds=($(get_checkout_window))
+    local checkout_start=${checkout_bounds[0]}
+    local checkout_end=${checkout_bounds[1]}
+    
+    # 判斷時間窗口（精確到分鐘）
+    if [[ $current_total_minutes -ge $checkin_start && $current_total_minutes -le $checkin_end ]]; then
         echo "checkin"
         return 0
-    elif [[ $current_hour -ge $CHECKOUT_START_HOUR && $current_hour -le $CHECKOUT_END_HOUR ]]; then
+    elif [[ $current_total_minutes -ge $checkout_start && $current_total_minutes -le $checkout_end ]]; then
         echo "checkout"
         return 0
     else
@@ -83,9 +97,9 @@ get_action_type() {
 
 # 記錄判斷過程的日誌
 log_time_determination() {
-    local current_hour=$(date +%H)
-    local current_minute=$(date +%M)
-    local current_time="${current_hour}:${current_minute}"
+    local current_hour=$(date +%H | sed 's/^0//')
+    local current_minute=$(date +%M | sed 's/^0//')
+    local current_time=$(printf "%02d:%02d" $current_hour $current_minute)
     local day_of_week=$(date +%u)  # 1=Monday, 7=Sunday
     
     log_debug "當前時間: $current_time, 星期: $day_of_week"
@@ -96,15 +110,34 @@ log_time_determination() {
         return
     fi
     
+    # 計算當前時間的總分鐘數
+    local current_total_minutes=$((current_hour * 60 + current_minute))
+    
+    # 使用動態計算的簽到時間窗口
+    local checkin_bounds=($(get_checkin_window))
+    local checkin_start=${checkin_bounds[0]}
+    local checkin_end=${checkin_bounds[1]}
+    
+    # 使用動態計算的簽退時間窗口
+    local checkout_bounds=($(get_checkout_window))
+    local checkout_start=${checkout_bounds[0]}
+    local checkout_end=${checkout_bounds[1]}
+    
+    # 轉換回時間格式顯示
+    local checkin_start_time=$(printf "%02d:%02d" $((checkin_start / 60)) $((checkin_start % 60)))
+    local checkin_end_time=$(printf "%02d:%02d" $((checkin_end / 60)) $((checkin_end % 60)))
+    local checkout_start_time=$(printf "%02d:%02d" $((checkout_start / 60)) $((checkout_start % 60)))
+    local checkout_end_time=$(printf "%02d:%02d" $((checkout_end / 60)) $((checkout_end % 60)))
+    
     # 判斷時間窗口並記錄日誌
-    if [[ $current_hour -ge $CHECKIN_START_HOUR && $current_hour -le $CHECKIN_END_HOUR ]]; then
-        log_info "在簽到時間窗口內 (${CHECKIN_START_HOUR}:00-${CHECKIN_END_HOUR}:00)"
-    elif [[ $current_hour -ge $CHECKOUT_START_HOUR && $current_hour -le $CHECKOUT_END_HOUR ]]; then
-        log_info "在簽退時間窗口內 (${CHECKOUT_START_HOUR}:00-${CHECKOUT_END_HOUR}:00)"
+    if [[ $current_total_minutes -ge $checkin_start && $current_total_minutes -le $checkin_end ]]; then
+        log_info "在簽到時間窗口內 ($checkin_start_time-$checkin_end_time)"
+    elif [[ $current_total_minutes -ge $checkout_start && $current_total_minutes -le $checkout_end ]]; then
+        log_info "在簽退時間窗口內 ($checkout_start_time-$checkout_end_time)"
     else
         log_info "當前時間 ($current_time) 不在打卡時段內"
-        log_debug "簽到窗口: ${CHECKIN_START_HOUR}:00-${CHECKIN_END_HOUR}:00"
-        log_debug "簽退窗口: ${CHECKOUT_START_HOUR}:00-${CHECKOUT_END_HOUR}:00"
+        log_debug "簽到窗口: $checkin_start_time-$checkin_end_time (設定時間 $(printf "%02d:%02d" $CHECKIN_HOUR $CHECKIN_MINUTE) ± ${WINDOW_SIZE_MINUTES}分鐘)"
+        log_debug "簽退窗口: $checkout_start_time-$checkout_end_time (設定時間 $(printf "%02d:%02d" $CHECKOUT_HOUR $CHECKOUT_MINUTE) ± ${WINDOW_SIZE_MINUTES}分鐘)"
     fi
 }
 

@@ -9,11 +9,7 @@
 # 簽到時間設定
 # ============================
 CHECKIN_HOUR=8
-CHECKIN_MINUTE=29
-
-# 簽到時間窗口 (用於判斷是否該執行簽到)
-CHECKIN_START_HOUR=7
-CHECKIN_END_HOUR=10
+CHECKIN_MINUTE=30
 
 # ============================
 # 簽退時間設定
@@ -21,9 +17,11 @@ CHECKIN_END_HOUR=10
 CHECKOUT_HOUR=18
 CHECKOUT_MINUTE=0
 
-# 簽退時間窗口 (用於判斷是否該執行簽退)
-CHECKOUT_START_HOUR=17
-CHECKOUT_END_HOUR=19
+# ============================
+# 時間窗口設定
+# ============================
+# 預設窗口大小：前後10分鐘
+WINDOW_SIZE_MINUTES=10
 
 # ============================
 # 工作日設定
@@ -46,6 +44,30 @@ is_workday() {
     return 1
 }
 
+# 計算時間窗口邊界（以分鐘為單位）
+get_window_bounds() {
+    local hour=$1
+    local minute=$2
+    local window_size=${3:-$WINDOW_SIZE_MINUTES}  # 使用配置的窗口大小或指定值
+    
+    local total_minutes=$((hour * 60 + minute))
+    local start=$((total_minutes - window_size))
+    local end=$((total_minutes + window_size))
+    
+    echo "$start $end"
+}
+
+# 獲取簽到窗口邊界
+get_checkin_window() {
+    get_window_bounds $CHECKIN_HOUR $CHECKIN_MINUTE
+}
+
+# 獲取簽退窗口邊界
+get_checkout_window() {
+    get_window_bounds $CHECKOUT_HOUR $CHECKOUT_MINUTE
+}
+
+
 # 格式化時間顯示
 format_time() {
     printf "%02d:%02d" "$1" "$2"
@@ -56,10 +78,22 @@ show_config() {
     echo "當前時間配置:"
     echo "=============="
     echo "簽到時間: $(format_time $CHECKIN_HOUR $CHECKIN_MINUTE)"
-    echo "簽到窗口: ${CHECKIN_START_HOUR}:00 - ${CHECKIN_END_HOUR}:00"
+    
+    # 計算並顯示簽到窗口
+    local checkin_bounds=($(get_checkin_window))
+    local checkin_start_time=$(printf "%02d:%02d" $((checkin_bounds[0] / 60)) $((checkin_bounds[0] % 60)))
+    local checkin_end_time=$(printf "%02d:%02d" $((checkin_bounds[1] / 60)) $((checkin_bounds[1] % 60)))
+    echo "簽到窗口: $checkin_start_time - $checkin_end_time (±${WINDOW_SIZE_MINUTES}分鐘)"
+    
     echo ""
     echo "簽退時間: $(format_time $CHECKOUT_HOUR $CHECKOUT_MINUTE)"
-    echo "簽退窗口: ${CHECKOUT_START_HOUR}:00 - ${CHECKOUT_END_HOUR}:00"
+    
+    # 計算並顯示簽退窗口
+    local checkout_bounds=($(get_checkout_window))
+    local checkout_start_time=$(printf "%02d:%02d" $((checkout_bounds[0] / 60)) $((checkout_bounds[0] % 60)))
+    local checkout_end_time=$(printf "%02d:%02d" $((checkout_bounds[1] / 60)) $((checkout_bounds[1] % 60)))
+    echo "簽退窗口: $checkout_start_time - $checkout_end_time (±${WINDOW_SIZE_MINUTES}分鐘)"
+    
     echo ""
     echo -n "工作日: "
     for day in "${WORKDAYS[@]}"; do

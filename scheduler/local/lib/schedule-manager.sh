@@ -61,21 +61,11 @@ update_config_file() {
     sed -i '' "s/^CHECKIN_HOUR=.*/CHECKIN_HOUR=$new_checkin_hour/" "$SCRIPT_DIR/../config/schedule.conf"
     sed -i '' "s/^CHECKIN_MINUTE=.*/CHECKIN_MINUTE=$new_checkin_minute/" "$SCRIPT_DIR/../config/schedule.conf"
     
-    # 更新簽到窗口 (前後各1小時)
-    local checkin_start=$((new_checkin_hour - 1))
-    local checkin_end=$((new_checkin_hour + 2))
-    sed -i '' "s/^CHECKIN_START_HOUR=.*/CHECKIN_START_HOUR=$checkin_start/" "$SCRIPT_DIR/../config/schedule.conf"
-    sed -i '' "s/^CHECKIN_END_HOUR=.*/CHECKIN_END_HOUR=$checkin_end/" "$SCRIPT_DIR/../config/schedule.conf"
-    
     # 更新簽退時間
     sed -i '' "s/^CHECKOUT_HOUR=.*/CHECKOUT_HOUR=$new_checkout_hour/" "$SCRIPT_DIR/../config/schedule.conf"
     sed -i '' "s/^CHECKOUT_MINUTE=.*/CHECKOUT_MINUTE=$new_checkout_minute/" "$SCRIPT_DIR/../config/schedule.conf"
     
-    # 更新簽退窗口 (前後各1小時)
-    local checkout_start=$((new_checkout_hour - 1))
-    local checkout_end=$((new_checkout_hour + 1))
-    sed -i '' "s/^CHECKOUT_START_HOUR=.*/CHECKOUT_START_HOUR=$checkout_start/" "$SCRIPT_DIR/../config/schedule.conf"
-    sed -i '' "s/^CHECKOUT_END_HOUR=.*/CHECKOUT_END_HOUR=$checkout_end/" "$SCRIPT_DIR/../config/schedule.conf"
+    # 窗口現在會自動計算，不需要手動更新
     
     success "配置文件已更新"
 }
@@ -219,15 +209,22 @@ reload_launchd() {
     info "重新載入 launchd 任務..."
     
     # 檢查是否在打卡時間窗口內
-    local current_hour=$(date +%H)
-    local current_minute=$(date +%M)
+    local current_hour=$(date +%H | sed 's/^0//')
+    local current_minute=$(date +%M | sed 's/^0//')
+    local current_total_minutes=$((current_hour * 60 + current_minute))
     
     # 載入配置以獲取時間窗口
     source "$SCRIPT_DIR/../config/schedule.conf"
     
+    # 使用動態計算的時間窗口
+    local checkin_bounds=($(get_checkin_window))
+    local checkout_bounds=($(get_checkout_window))
+    
     # 檢查是否在簽到時間窗口
-    if [[ $current_hour -ge $CHECKIN_START_HOUR && $current_hour -le $CHECKIN_END_HOUR ]]; then
-        warning "目前在簽到時間窗口內 (${CHECKIN_START_HOUR}:00-${CHECKIN_END_HOUR}:00)"
+    if [[ $current_total_minutes -ge ${checkin_bounds[0]} && $current_total_minutes -le ${checkin_bounds[1]} ]]; then
+        local start_time=$(printf "%02d:%02d" $((checkin_bounds[0] / 60)) $((checkin_bounds[0] % 60)))
+        local end_time=$(printf "%02d:%02d" $((checkin_bounds[1] / 60)) $((checkin_bounds[1] % 60)))
+        warning "目前在簽到時間窗口內 ($start_time-$end_time)"
         warning "更新配置可能會影響正在執行的打卡任務"
         read -p "確定要繼續嗎? (y/N): " -n 1 -r
         echo
@@ -238,8 +235,10 @@ reload_launchd() {
     fi
     
     # 檢查是否在簽退時間窗口
-    if [[ $current_hour -ge $CHECKOUT_START_HOUR && $current_hour -le $CHECKOUT_END_HOUR ]]; then
-        warning "目前在簽退時間窗口內 (${CHECKOUT_START_HOUR}:00-${CHECKOUT_END_HOUR}:00)"
+    if [[ $current_total_minutes -ge ${checkout_bounds[0]} && $current_total_minutes -le ${checkout_bounds[1]} ]]; then
+        local start_time=$(printf "%02d:%02d" $((checkout_bounds[0] / 60)) $((checkout_bounds[0] % 60)))
+        local end_time=$(printf "%02d:%02d" $((checkout_bounds[1] / 60)) $((checkout_bounds[1] % 60)))
+        warning "目前在簽退時間窗口內 ($start_time-$end_time)"
         warning "更新配置可能會影響正在執行的打卡任務"
         read -p "確定要繼續嗎? (y/N): " -n 1 -r
         echo

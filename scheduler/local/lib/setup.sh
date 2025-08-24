@@ -284,16 +284,30 @@ show_status() {
     local current_hour=$(date +%H | sed 's/^0//')
     local current_minute=$(date +%M | sed 's/^0//')
     local current_time=$(printf "%02d:%02d" $current_hour $current_minute)
+    local current_total_minutes=$((current_hour * 60 + current_minute))
     local day_of_week=$(date +%u)
     
     echo "  當前時間: $current_time"
     
+    # 使用動態計算的時間窗口
+    local checkin_bounds=($(get_checkin_window))
+    local checkin_start=${checkin_bounds[0]}
+    local checkin_end=${checkin_bounds[1]}
+    local checkin_start_time=$(printf "%02d:%02d" $((checkin_start / 60)) $((checkin_start % 60)))
+    local checkin_end_time=$(printf "%02d:%02d" $((checkin_end / 60)) $((checkin_end % 60)))
+    
+    local checkout_bounds=($(get_checkout_window))
+    local checkout_start=${checkout_bounds[0]}
+    local checkout_end=${checkout_bounds[1]}
+    local checkout_start_time=$(printf "%02d:%02d" $((checkout_start / 60)) $((checkout_start % 60)))
+    local checkout_end_time=$(printf "%02d:%02d" $((checkout_end / 60)) $((checkout_end % 60)))
+    
     # 檢查是否在時間窗口內
     if is_workday; then
-        if [[ $current_hour -ge $CHECKIN_START_HOUR && $current_hour -le $CHECKIN_END_HOUR ]]; then
-            echo "  ✅ 當前在簽到窗口內 (${CHECKIN_START_HOUR}:00-${CHECKIN_END_HOUR}:00)"
-        elif [[ $current_hour -ge $CHECKOUT_START_HOUR && $current_hour -le $CHECKOUT_END_HOUR ]]; then
-            echo "  ✅ 當前在簽退窗口內 (${CHECKOUT_START_HOUR}:00-${CHECKOUT_END_HOUR}:00)"
+        if [[ $current_total_minutes -ge $checkin_start && $current_total_minutes -le $checkin_end ]]; then
+            echo "  ✅ 當前在簽到窗口內 ($checkin_start_time-$checkin_end_time)"
+        elif [[ $current_total_minutes -ge $checkout_start && $current_total_minutes -le $checkout_end ]]; then
+            echo "  ✅ 當前在簽退窗口內 ($checkout_start_time-$checkout_end_time)"
         else
             echo "  ⏸ 當前不在任何打卡窗口內"
         fi
@@ -303,8 +317,8 @@ show_status() {
     
     echo
     info "排程時間:"
-    echo "  簽到: 週一至週五 $(format_time $CHECKIN_HOUR $CHECKIN_MINUTE) (窗口: ${CHECKIN_START_HOUR}:00-${CHECKIN_END_HOUR}:00)"
-    echo "  簽退: 週一至週五 $(format_time $CHECKOUT_HOUR $CHECKOUT_MINUTE) (窗口: ${CHECKOUT_START_HOUR}:00-${CHECKOUT_END_HOUR}:00)"
+    echo "  簽到: 週一至週五 $(format_time $CHECKIN_HOUR $CHECKIN_MINUTE) (窗口: $checkin_start_time-$checkin_end_time)"
+    echo "  簽退: 週一至週五 $(format_time $CHECKOUT_HOUR $CHECKOUT_MINUTE) (窗口: $checkout_start_time-$checkout_end_time)"
     
     # 計算下次執行時間
     local current_hour=$(date +%H)

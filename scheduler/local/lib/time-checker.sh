@@ -57,32 +57,6 @@ time_diff_minutes() {
     echo $((target_total - current_total))
 }
 
-# 顯示時間狀態條
-show_time_bar() {
-    local start_hour=$1
-    local end_hour=$2
-    local current_hour=$(date +%H | sed 's/^0//')
-    
-    echo -n "  時間窗口: ["
-    
-    for hour in $(seq 0 23); do
-        if [[ $hour -ge $start_hour && $hour -le $end_hour ]]; then
-            if [[ $hour -eq $current_hour ]]; then
-                echo -n -e "${GREEN}▓${NC}"
-            else
-                echo -n -e "${CYAN}░${NC}"
-            fi
-        else
-            if [[ $hour -eq $current_hour ]]; then
-                echo -n -e "${YELLOW}▓${NC}"
-            else
-                echo -n " "
-            fi
-        fi
-    done
-    
-    echo "] (0-23時)"
-}
 
 # 檢查時間窗口
 check_time_window() {
@@ -127,17 +101,38 @@ check_time_window() {
     # 簽到窗口檢查
     echo -e "${MAGENTA}【簽到窗口】${NC}"
     echo "  設定時間: $(format_time_colored $CHECKIN_HOUR $CHECKIN_MINUTE)"
-    echo "  執行窗口: ${CHECKIN_START_HOUR}:00 - ${CHECKIN_END_HOUR}:00"
-    show_time_bar $CHECKIN_START_HOUR $CHECKIN_END_HOUR
     
-    if [[ $current_hour -ge $CHECKIN_START_HOUR && $current_hour -le $CHECKIN_END_HOUR ]]; then
+    # 使用動態計算的時間窗口
+    local checkin_bounds=($(get_checkin_window))
+    local checkin_start=${checkin_bounds[0]}
+    local checkin_end=${checkin_bounds[1]}
+    local checkin_start_time=$(printf "%02d:%02d" $((checkin_start / 60)) $((checkin_start % 60)))
+    local checkin_end_time=$(printf "%02d:%02d" $((checkin_end / 60)) $((checkin_end % 60)))
+    
+    echo -e "  執行窗口: ${CYAN}${checkin_start_time} - ${checkin_end_time}${NC} (±${WINDOW_SIZE_MINUTES}分鐘)"
+    
+    # 計算當前時間的總分鐘數
+    local current_total_minutes=$((current_hour * 60 + current_minute))
+    local checkin_total_minutes=$((CHECKIN_HOUR * 60 + CHECKIN_MINUTE))
+    
+    if [[ $current_total_minutes -ge $checkin_start && $current_total_minutes -le $checkin_end ]]; then
         success "當前在簽到窗口內 ✓"
+        local time_to_target=$((checkin_total_minutes - current_total_minutes))
+        if [[ $time_to_target -gt 0 ]]; then
+            info "距離設定時間還有 $time_to_target 分鐘"
+        elif [[ $time_to_target -lt 0 ]]; then
+            info "已過設定時間 $((-time_to_target)) 分鐘"
+        else
+            info "正好是設定時間"
+        fi
     else
-        if [[ $current_hour -lt $CHECKIN_START_HOUR ]]; then
-            local diff=$(time_diff_minutes $CHECKIN_START_HOUR 0)
+        if [[ $current_total_minutes -lt $checkin_start ]]; then
+            local diff=$((checkin_start - current_total_minutes))
             info "距離簽到窗口還有 $diff 分鐘"
         else
             warning "已錯過簽到窗口"
+            local diff=$((current_total_minutes - checkin_end))
+            info "窗口已結束 $diff 分鐘"
         fi
     fi
     echo
@@ -145,37 +140,70 @@ check_time_window() {
     # 簽退窗口檢查
     echo -e "${MAGENTA}【簽退窗口】${NC}"
     echo "  設定時間: $(format_time_colored $CHECKOUT_HOUR $CHECKOUT_MINUTE)"
-    echo "  執行窗口: ${CHECKOUT_START_HOUR}:00 - ${CHECKOUT_END_HOUR}:00"
-    show_time_bar $CHECKOUT_START_HOUR $CHECKOUT_END_HOUR
     
-    if [[ $current_hour -ge $CHECKOUT_START_HOUR && $current_hour -le $CHECKOUT_END_HOUR ]]; then
+    # 使用動態計算的時間窗口
+    local checkout_bounds=($(get_checkout_window))
+    local checkout_start=${checkout_bounds[0]}
+    local checkout_end=${checkout_bounds[1]}
+    local checkout_start_time=$(printf "%02d:%02d" $((checkout_start / 60)) $((checkout_start % 60)))
+    local checkout_end_time=$(printf "%02d:%02d" $((checkout_end / 60)) $((checkout_end % 60)))
+    
+    echo -e "  執行窗口: ${CYAN}${checkout_start_time} - ${checkout_end_time}${NC} (±${WINDOW_SIZE_MINUTES}分鐘)"
+    
+    # 計算當前時間的總分鐘數
+    local current_total_minutes=$((current_hour * 60 + current_minute))
+    local checkout_total_minutes=$((CHECKOUT_HOUR * 60 + CHECKOUT_MINUTE))
+    
+    if [[ $current_total_minutes -ge $checkout_start && $current_total_minutes -le $checkout_end ]]; then
         success "當前在簽退窗口內 ✓"
+        local time_to_target=$((checkout_total_minutes - current_total_minutes))
+        if [[ $time_to_target -gt 0 ]]; then
+            info "距離設定時間還有 $time_to_target 分鐘"
+        elif [[ $time_to_target -lt 0 ]]; then
+            info "已過設定時間 $((-time_to_target)) 分鐘"
+        else
+            info "正好是設定時間"
+        fi
     else
-        if [[ $current_hour -lt $CHECKOUT_START_HOUR ]]; then
-            local diff=$(time_diff_minutes $CHECKOUT_START_HOUR 0)
+        if [[ $current_total_minutes -lt $checkout_start ]]; then
+            local diff=$((checkout_start - current_total_minutes))
             info "距離簽退窗口還有 $diff 分鐘"
         else
             warning "已錯過簽退窗口"
+            local diff=$((current_total_minutes - checkout_end))
+            info "窗口已結束 $diff 分鐘"
         fi
     fi
     echo
     
     # 建議動作
     echo -e "${CYAN}【建議動作】${NC}"
-    if [[ $current_hour -ge $CHECKIN_START_HOUR && $current_hour -le $CHECKIN_END_HOUR ]]; then
+    
+    # 使用動態計算的時間窗口
+    local current_total_minutes=$((current_hour * 60 + current_minute))
+    local checkin_bounds=($(get_checkin_window))
+    local checkin_start=${checkin_bounds[0]}
+    local checkin_end=${checkin_bounds[1]}
+    local checkout_bounds=($(get_checkout_window))
+    local checkout_start=${checkout_bounds[0]}
+    local checkout_end=${checkout_bounds[1]}
+    
+    if [[ $current_total_minutes -ge $checkin_start && $current_total_minutes -le $checkin_end ]]; then
         echo -e "  👉 可執行: ${GREEN}簽到${NC}"
         echo "     命令: ./manage dispatch checkin"
-    elif [[ $current_hour -ge $CHECKOUT_START_HOUR && $current_hour -le $CHECKOUT_END_HOUR ]]; then
+    elif [[ $current_total_minutes -ge $checkout_start && $current_total_minutes -le $checkout_end ]]; then
         echo -e "  👉 可執行: ${GREEN}簽退${NC}"
         echo "     命令: ./manage dispatch checkout"
     else
         echo "  ⏸ 當前不在任何打卡窗口內"
         
         # 計算下一個窗口
-        if [[ $current_hour -lt $CHECKIN_START_HOUR ]]; then
-            echo -e "  ⏰ 下個窗口: ${CYAN}簽到${NC} (${CHECKIN_START_HOUR}:00)"
-        elif [[ $current_hour -lt $CHECKOUT_START_HOUR ]]; then
-            echo -e "  ⏰ 下個窗口: ${CYAN}簽退${NC} (${CHECKOUT_START_HOUR}:00)"
+        if [[ $current_total_minutes -lt $checkin_start ]]; then
+            local checkin_start_time=$(printf "%02d:%02d" $((checkin_start / 60)) $((checkin_start % 60)))
+            echo -e "  ⏰ 下個窗口: ${CYAN}簽到${NC} ($checkin_start_time)"
+        elif [[ $current_total_minutes -lt $checkout_start ]]; then
+            local checkout_start_time=$(printf "%02d:%02d" $((checkout_start / 60)) $((checkout_start % 60)))
+            echo -e "  ⏰ 下個窗口: ${CYAN}簽退${NC} ($checkout_start_time)"
         else
             echo "  ⏰ 今日打卡窗口已全部結束"
         fi
@@ -185,15 +213,28 @@ check_time_window() {
 # 簡單檢查（用於其他腳本調用）
 simple_check() {
     local current_hour=$(date +%H | sed 's/^0//')
+    local current_minute=$(date +%M | sed 's/^0//')
     
     if ! is_workday; then
         echo "non-workday"
         return
     fi
     
-    if [[ $current_hour -ge $CHECKIN_START_HOUR && $current_hour -le $CHECKIN_END_HOUR ]]; then
+    # 計算當前時間的總分鐘數
+    local current_total_minutes=$((current_hour * 60 + current_minute))
+    
+    # 使用動態計算的時間窗口
+    local checkin_bounds=($(get_checkin_window))
+    local checkin_start=${checkin_bounds[0]}
+    local checkin_end=${checkin_bounds[1]}
+    
+    local checkout_bounds=($(get_checkout_window))
+    local checkout_start=${checkout_bounds[0]}
+    local checkout_end=${checkout_bounds[1]}
+    
+    if [[ $current_total_minutes -ge $checkin_start && $current_total_minutes -le $checkin_end ]]; then
         echo "checkin"
-    elif [[ $current_hour -ge $CHECKOUT_START_HOUR && $current_hour -le $CHECKOUT_END_HOUR ]]; then
+    elif [[ $current_total_minutes -ge $checkout_start && $current_total_minutes -le $checkout_end ]]; then
         echo "checkout"
     else
         echo "outside-window"
