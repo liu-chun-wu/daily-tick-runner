@@ -10,75 +10,26 @@
 ## 📋 目錄
 
 - [專案簡介](#-專案簡介)
-- [系統架構](#-系統架構)
+- [核心功能](#-核心功能)
 - [快速開始](#-快速開始)
 - [環境變數](#-環境變數)
 - [使用方式](#-使用方式)
-- [專案結構](#-專案結構)
-- [測試說明](#-測試說明)
-- [GitHub Actions](#-github-actions)
-- [通知系統](#-通知系統)
-- [開發指南](#-開發指南)
-- [重試機制與穩定性](#-重試機制與穩定性)
-- [疑難排解](#-疑難排解)
-- [安全注意事項](#-安全注意事項)
+- [相關文檔](#-相關文檔)
 
 ## 🎯 專案簡介
 
-### 核心功能
+一個基於 Playwright 的自動化打卡系統，透過 GitHub Actions 或本地排程器實現定時自動簽到簽退。
 
-- ✅ **自動化打卡**：自動執行每日簽到簽退作業
-- 🕐 **智慧排程**：支援工作日自動執行（週一至週五）
-- 🔄 **多層重試機制**：Playwright + GitHub Actions 雙重重試保障
-- 📸 **截圖存證**：自動擷取打卡成功畫面
-- 💬 **即時通知**：支援 Discord 和 LINE 雙平台通知
-- 🔍 **完整日誌**：詳細的執行日誌與錯誤追蹤
-- 🌏 **時區支援**：正確處理台北時區
-- 📍 **位置驗證**：支援 GPS 座標設定
+## 🚀 核心功能
 
-### 技術特色
+- ✅ **自動化打卡** - 自動執行每日簽到簽退
+- 🕐 **智慧排程** - 支援工作日自動執行
+- 🔄 **多層重試** - 確保執行穩定性
+- 📸 **截圖存證** - 自動保存執行結果
+- 💬 **即時通知** - Discord/LINE 雙平台支援
+- 🌏 **時區支援** - 正確處理台北時區
 
-- 使用 Playwright 進行 E2E 自動化測試
-- 多層重試策略（Playwright 2次 + Actions 3次）
-- Page Object Model 設計模式
-- TypeScript 強型別支援
-- GitHub Actions CI/CD 整合
-- 環境變數安全管理
-- 完整的錯誤處理機制
-- 智慧超時設定，適應網路環境
-
-## 🏗️ 系統架構
-
-```
-┌────────────────────────────────────────────────┐
-│                   GitHub Actions               │
-│  ┌──────────────┐            ┌──────────────┐  │
-│  │ Test Schedule│            │ Production   │  │
-│  │ (每5分鐘)     │            │ Schedule     │  │
-│  └──────┬───────┘            └──────┬───────┘  │
-└─────────┼───────────────────────────┼──────────┘
-          │                           │
-          ▼                           ▼
-    ┌────────────────────────────────────────┐
-    │         Playwright Test Runner         │
-    └────────────────┬───────────────────────┘
-                     │
-         ┌───────────┼───────────┐
-         ▼           ▼           ▼
-    ┌─────────┐ ┌─────────┐ ┌─────────┐
-    │  Setup  │ │  Smoke  │ │  Click  │
-    │  Tests  │ │  Tests  │ │  Tests  │
-    └─────────┘ └─────────┘ └────┬────┘
-                                 │
-                    ┌────────────┼────────────┐
-                    ▼                         ▼
-               ┌──────────┐             ┌──────────┐
-               │ Discord  │             │   LINE   │
-               │ Webhook  │             │   API    │
-               └──────────┘             └──────────┘
-```
-
-## 🚀 快速開始
+## ⚡ 快速開始
 
 ### 前置需求
 
@@ -172,8 +123,6 @@ LINE_USER_ID=your_line_user_id
 
 ## 💻 使用方式
 
-### 本地測試
-
 ```bash
 # 環境檢查
 npm run test:setup
@@ -223,332 +172,36 @@ npm run test:ui
    - 測試排程：編輯 `.github/workflows/test-schedule.yml`，取消 schedule 註解
    - 正式排程：編輯 `.github/workflows/production-schedule.yml`，啟用 schedule
 
-### 本地排程器 (macOS)
+### 部署選項
 
-如果你希望使用本地 Mac 來觸發 GitHub Actions，而不依賴 GitHub 的 schedule：
+#### 方式一：GitHub Actions（推薦）
+詳見 [部署指南](./DEPLOYMENT.md)
 
-1. **進入本地排程器目錄**
-   ```bash
-   cd scheduler/local
-   ```
+#### 方式二：本地排程器 (macOS)
+詳見 [本地排程器指南](./LOCAL-SCHEDULER.md)
 
-2. **安裝本地排程**
-   ```bash
-   # 確認 GitHub CLI 已安裝並登入
-   gh auth login
-   
-   # 安裝定時任務
-   ./manage install
-   ```
 
-3. **管理本地排程**
-   ```bash
-   # 查看狀態
-   ./manage status
-   
-   # 查看日誌
-   ./manage logs latest
-   
-   # 更新時間設定
-   ./manage update-time
-   
-   # 完整說明
-   ./manage help
-   ```
 
-本地排程器的詳細說明請參考：[scheduler/local/docs/README.md](scheduler/local/docs/README.md)
 
-## 📁 專案結構
 
-```
-daily-tick-runner/
-├── 📂 .github/workflows/        # GitHub Actions 工作流程
-│   ├── test-schedule.yml        # 測試排程（每5分鐘）
-│   └── production-schedule.yml  # 正式排程（8:30/18:00）
-│
-├── 📂 automation/               # 自動化核心程式碼
-│   ├── 📂 notify/              # 通知服務
-│   │   ├── discord.ts          # Discord 整合
-│   │   ├── line.ts             # LINE 整合
-│   │   └── types.ts            # 型別定義
-│   ├── 📂 pages/               # Page Objects
-│   │   ├── AttendancePage.ts   # 打卡頁面
-│   │   └── LoginPage.ts        # 登入頁面
-│   └── 📂 utils/               # 工具函式
-│       ├── location.ts         # 位置處理
-│       ├── logger.ts           # 日誌系統
-│       └── stableScreenshot.ts # 截圖工具
-│
-├── 📂 config/                   # 設定檔
-│   └── env.ts                   # 環境變數管理
-│
-├── 📂 scheduler/                # 排程管理
-│   └── 📂 local/               # 本地排程器 (macOS)
-│       ├── 📂 bin/             # 執行檔
-│       │   └── trigger.sh      # 主程式 - 觸發打卡
-│       ├── 📂 config/          # 配置檔
-│       │   ├── schedule.conf   # 時間設定配置
-│       │   └── launchd/       # macOS 排程配置
-│       │       ├── checkin.plist    # 簽到任務配置
-│       │       └── checkout.plist   # 簽退任務配置
-│       ├── 📂 lib/            # 內部工具庫
-│       │   ├── setup.sh       # 安裝與管理工具
-│       │   ├── schedule-manager.sh # 時間設定管理
-│       │   └── log-viewer.sh  # 日誌檢視工具
-│       ├── 📂 docs/           # 文件
-│       │   └── README.md      # 本地排程文件
-│       └── manage             # 統一管理入口
-│
-├── 📂 tests/                    # 測試檔案
-│   ├── 📂 check/               # 打卡測試
-│   │   ├── checkin.click.spec.ts   # 簽到（實際點擊）
-│   │   ├── checkin.smoke.spec.ts   # 簽到（驗證）
-│   │   ├── checkout.click.spec.ts  # 簽退（實際點擊）
-│   │   └── checkout.smoke.spec.ts  # 簽退（驗證）
-│   ├── 📂 notify/              # 通知測試
-│   └── 📂 setup/               # 設定測試
-│
-├── 📄 playwright.config.ts      # Playwright 設定
-├── 📄 package.json             # 專案設定
-└── 📄 README.md                # 本文件
-```
 
-## 🧪 測試說明
 
-### 測試類型
 
-| 標籤 | 類型 | 說明 |
-|------|------|------|
-| `@setup` | 設定測試 | 環境驗證與登入設定 |
-| `@smoke` | Smoke 測試 | UI 元素驗證，不執行實際操作 |
-| `@click` | Click 測試 | 實際執行打卡操作 |
-| `@notify` | 通知測試 | 測試通知發送功能 |
+## 📚 相關文檔
 
-### 執行順序
+### 核心文檔
+- [🛠 開發指南](./DEVELOPMENT.md) - 本地開發、測試撰寫、除錯技巧
+- [📦 部署指南](./DEPLOYMENT.md) - GitHub Actions 設定與部署
+- [🏗 架構設計](./ARCHITECTURE.md) - 系統架構與設計原則
+- [⏰ 本地排程器](./LOCAL-SCHEDULER.md) - macOS 本地排程設定
 
-1. **Setup** → 驗證環境變數，建立登入 session
-2. **Smoke** → 確認頁面元素正常顯示
-3. **Click** → 執行實際打卡動作
-4. **Notify** → 發送結果通知
+### 進階文檔
+- [🔍 疑難排解](./docs/TROUBLESHOOTING.md) - 常見問題與解決方案
+- [🔒 安全指南](./docs/SECURITY.md) - 安全最佳實踐
 
-## 🔄 GitHub Actions
-
-### 測試排程 (test-schedule.yml)
-
-- **觸發時機**：每 5 分鐘（測試用）
-- **功能**：
-  - 環境檢查
-  - 執行簽到測試
-  - 失敗時上傳截圖
-  - Discord 通知
-
-### 正式排程 (production-schedule.yml)
-
-- **觸發時機**：
-  - 簽到：週一至週五 08:30
-  - 簽退：週一至週五 18:00
-- **功能**：
-  - 自動判斷簽到/簽退
-  - 完整的錯誤處理
-  - 成功/失敗通知
-  - 14 天日誌保留
-
-### 手動觸發
-
-兩個工作流程都支援手動觸發：
-
-1. 進入 Actions 頁面
-2. 選擇工作流程
-3. 點擊 "Run workflow"
-4. 選擇參數並執行
-
-## 💬 通知系統
-
-### Discord 設定
-
-1. 建立 Discord Webhook：
-   - 伺服器設定 → 整合 → Webhook
-   - 建立 Webhook 並複製 URL
-   - 設定為 GitHub Secret
-
-2. 通知內容：
-   - ✅ 打卡成功通知
-   - ❌ 打卡失敗警告
-   - 📸  包含截圖證明
-
-### LINE 設定
-
-1. 建立 LINE Messaging API Channel：
-   - 前往 [LINE Developers](https://developers.line.biz/)
-   - 建立 Provider 和 Channel
-   - 取得 Channel Access Token
-
-2. 取得 User ID：
-   - 使用 LINE Official Account Manager
-   - 或透過 Webhook 事件取得
-
-3. 通知內容：
-   - 文字訊息
-   - 圖片訊息（透過 Discord CDN）
-
-## 👨‍💻 開發指南
-
-### 開發環境設定
-
-```bash
-# 安裝開發依賴
-npm install
-
-# 執行型別檢查
-npx tsc --noEmit
-
-# 執行 Playwright 程式碼產生器
-npx playwright codegen https://erpline.aoacloud.com.tw/
-
-# 查看測試報告
-npx playwright show-report
-```
-
-### 新增測試
-
-1. 在 `tests/` 目錄建立新的 spec 檔案
-2. 使用適當的標籤（@smoke, @click 等）
-3. 遵循 Page Object Model 模式
-4. 加入適當的等待和驗證
-
-### 除錯技巧
-
-```bash
-# 開啟 headed 模式
-npx playwright test --headed
-
-# 開啟除錯模式
-npx playwright test --debug
-
-# 指定單一測試
-npx playwright test -g "簽到"
-
-# 保留測試追蹤
-npx playwright test --trace on
-```
-
-## 🔄 重試機制與穩定性
-
-### 多層重試策略
-
-為了應對網路不穩、伺服器暫時無回應等問題，系統採用三層重試機制：
-
-#### 第1層：Playwright 內建重試
-- **CI 環境**：自動重試 2 次
-- **本地環境**：重試 1 次
-- **觸發條件**：測試失敗時自動重試
-- **間隔**：立即重試
-
-#### 第2層：GitHub Actions 步驟重試  
-- **重試次數**：最多 3 次
-- **重試間隔**：60 秒
-- **超時時間**：15 分鐘
-- **觸發條件**：整個步驟執行失敗時
-
-#### 第3層：排程自動重新執行
-- **觸發條件**：當前執行完全失敗
-- **重試間隔**：等待下次排程時間
-- **通知機制**：只有最終失敗才發送警告
-
-### 超時設定優化
-
-| 設定項目 | 時間 | 說明 |
-|---------|------|------|
-| 單個測試 | 60秒 | 整個測試的最大執行時間 |
-| 元素等待 | 15秒 | 等待頁面元素出現的時間 |
-| 動作執行 | 10秒 | 單個操作（點擊、輸入）的超時 |
-| 頁面導航 | 30秒 | 頁面跳轉的最大等待時間 |
-
-### 網路不穩處理機制
-
-1. **頁面載入確認**：等待 `networkidle` 狀態
-2. **元素可互動檢查**：確保按鈕可點擊才執行
-3. **智慧等待間隔**：操作間加入穩定性等待
-4. **失敗原因記錄**：詳細記錄重試原因
-
-### 自訂重試設定
-
-如需調整重試參數，可修改以下檔案：
-
-#### Playwright 重試次數
-```typescript
-// playwright.config.ts
-retries: process.env.CI ? 2 : 1,  // 調整重試次數
-```
-
-#### GitHub Actions 重試設定
-```yaml
-# .github/workflows/*.yml
-max_attempts: 3          # 最大嘗試次數
-retry_wait_seconds: 60   # 重試間隔
-timeout_minutes: 15      # 超時時間
-```
-
-## 🔍 疑難排解
-
-### 常見問題
-
-**Q: 登入失敗**
-- 檢查帳號密碼是否正確
-- 確認公司代碼無誤
-- 檢查網路連線
-
-**Q: 打卡按鈕無法點擊**
-- 可能已經打過卡
-- 檢查時間是否在允許範圍內
-- 確認 GPS 座標設定
-
-**Q: 通知未收到**
-- 檢查 Webhook URL 或 Token 是否正確
-- 查看 GitHub Actions 日誌
-- 確認通知服務正常運作
-
-**Q: 測試經常失敗**
-- ✅ 系統已內建三層重試機制
-- 大多數網路問題會自動重試解決
-- 查看日誌確認是否為持續性問題
-
-**Q: 截圖中文字亂碼**
-- GitHub Actions 已自動安裝中文字體
-- 本地測試需安裝 Noto CJK 字體
-
-**Q: 重試次數太多或太少**
-- 可修改 `playwright.config.ts` 中的 `retries` 設定
-- 可調整 GitHub Actions 中的 `max_attempts` 參數
-
-### 查看日誌
-
-1. **GitHub Actions 日誌**：
-   - Actions → 選擇執行 → 查看詳細日誌
-
-2. **本地日誌**：
-   - 設定 `LOG_LEVEL=DEBUG`
-   - 查看 console 輸出
-
-3. **Playwright Trace**：
-   - 下載 trace.zip
-   - 使用 `npx playwright show-trace trace.zip`
-
-## 🔒 安全注意事項
-
-### Secrets 管理
-
-- ⚠️ **絕不**將密碼提交到程式碼庫
-- 使用 GitHub Secrets 管理敏感資訊
-- 定期更換密碼和 Token
-- 限制 Repository 存取權限
-
-### 最佳實踐
-
-1. 使用強密碼
-2. 啟用 GitHub 兩步驟驗證
-3. 定期檢查 Actions 執行紀錄
-4. 監控異常登入活動
+### 外部資源
+- [Playwright 官方文檔](https://playwright.dev)
+- [GitHub Actions 文檔](https://docs.github.com/actions)
 
 ## 📝 授權
 
