@@ -38,6 +38,7 @@ on:
 jobs:
   test-punch:
     runs-on: ubuntu-latest
+    container: ghcr.io/liu-chun-wu/daily-tick-runner/runner:latest  # 使用自有映像
     timeout-minutes: 10
     
     steps:
@@ -53,13 +54,7 @@ jobs:
       - name: 🔧 Install dependencies
         run: npm ci
 
-      - name: 🎭 Install Playwright browsers
-        run: npx playwright install chromium
-
-      - name: 🔤 Install Chinese fonts
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y fonts-noto-cjk fonts-wqy-zenhei
+      # Playwright 瀏覽器和中文字型已在容器中預裝，無需再安裝
 
       - name: 🔍 Environment check and login setup
         env:

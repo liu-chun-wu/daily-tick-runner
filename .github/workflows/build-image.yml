@@ -1,0 +1,46 @@
+# .github/workflows/build-image.yml
+name: Build Image
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write  # 允許推送到 GHCR
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}  # GH 建議用 GITHUB_TOKEN
+          # 參考：GH Packages/Container registry 與 login action
+          # https://docs.github.com/.../publishing-and-installing-a-package-with-github-actions
+          # https://github.com/docker/login-action
+
+      - name: Set tags
+        id: meta
+        run: |
+          REPO=ghcr.io/${{ github.repository }}
+          SHA=${{ github.sha }}
+          echo "image=${REPO}/runner" >> $GITHUB_OUTPUT
+          echo "tags=${REPO}/runner:sha-${SHA},${REPO}/runner:latest" >> $GITHUB_OUTPUT
+
+      - name: Build & Push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          provenance: false   # 避免推送過多中繼層（有案例建議） 
+          # https://github.com/docker/build-push-action

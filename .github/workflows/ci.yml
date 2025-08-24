@@ -1,0 +1,53 @@
+# .github/workflows/ci.yml
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true  # 新的跑起來會取消舊的
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    container: mcr.microsoft.com/playwright:v1.49.0-noble   # 之後可改成自有映像
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'                    # 需有 package-lock.json / yarn.lock 才會生效
+          cache-dependency-path: 'package-lock.json'
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Lint (optional)
+        run: npm run lint --if-present
+
+      # 若你不是跑在 Playwright 官方容器、而是 ubuntu 主機，可改用：
+      # - run: npx playwright install --with-deps
+      # Playwright CI 指南詳見官方文件
+      # https://playwright.dev/docs/ci
+
+      - name: Run tests
+        run: npx playwright test --reporter=line
+
+      - name: Upload test report & traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pw-report
+          path: |
+            playwright-report/
+            test-results/**
+            traces/**
+          retention-days: 7

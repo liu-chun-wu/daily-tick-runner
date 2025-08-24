@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: daily-tick-runner:local
+    container_name: daily-tick-runner
+    volumes:
+      - .:/app
+      - /app/node_modules  # 避免覆蓋容器內的 node_modules
+    environment:
+      - NODE_ENV=development
+      - TZ=Asia/Taipei
+      - LOCALE=zh-TW
+      - LOG_LEVEL=${LOG_LEVEL:-DEBUG}
+      # 從 .env 文件讀取敏感配置
+      - BASE_URL=${BASE_URL:-https://erpline.aoacloud.com.tw/}
+      - COMPANY_CODE=${COMPANY_CODE:-CYBERBIZ}
+      - AOA_USERNAME=${AOA_USERNAME}
+      - AOA_PASSWORD=${AOA_PASSWORD}
+      - AOA_LAT=${AOA_LAT:-25.080869}
+      - AOA_LON=${AOA_LON:-121.569862}
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
+      - LINE_CHANNEL_ACCESS_TOKEN=${LINE_CHANNEL_ACCESS_TOKEN}
+      - LINE_USER_ID=${LINE_USER_ID}
+    working_dir: /app
+    command: /bin/bash
+    stdin_open: true
+    tty: true
+    networks:
+      - tick-runner-network
+
+  # 可選：用於運行測試的服務
+  test:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: daily-tick-runner:local
+    container_name: daily-tick-runner-test
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=test
+      - TZ=Asia/Taipei
+      - LOCALE=zh-TW
+      - LOG_LEVEL=${LOG_LEVEL:-DEBUG}
+    working_dir: /app
+    command: npx playwright test
+    networks:
+      - tick-runner-network
+
+networks:
+  tick-runner-network:
+    driver: bridge
