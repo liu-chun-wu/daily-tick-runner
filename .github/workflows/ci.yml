@@ -13,7 +13,7 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
-    container: mcr.microsoft.com/playwright:v1.49.0-noble   # 之後可改成自有映像
+    container: ghcr.io/liu-chun-wu/daily-tick-runner/runner:latest  # 使用自有映像（含中文字型）
     timeout-minutes: 20
 
     steps:
@@ -33,10 +33,7 @@ jobs:
       - name: 🔍 Lint (optional)
         run: npm run lint --if-present
 
-      # 若你不是跑在 Playwright 官方容器、而是 ubuntu 主機，可改用：
-      # - run: npx playwright install --with-deps
-      # Playwright CI 指南詳見官方文件
-      # https://playwright.dev/docs/ci
+      # Playwright 瀏覽器和中文字型已在容器中預裝，無需再安裝
 
       - name: 🔐 Setup and login
         env:
