@@ -35,8 +35,11 @@ jobs:
       # Playwright CI 指南詳見官方文件
       # https://playwright.dev/docs/ci
 
-      - name: Run tests
-        run: npx playwright test --reporter=line
+      - name: Run notify tests
+        run: npx playwright test --project=notify --workers=1 --trace on
+      
+      - name: Run chromium-smoke tests
+        run: npx playwright test --project=chromium-smoke --workers=1 --trace on
 
       - name: Upload test report & traces
         if: always()
