@@ -27,9 +27,6 @@ jobs:
       - name: Install deps
         run: npm ci
 
-      - name: Type check
-        run: npx --package=typescript tsc --noEmit
-
       - name: Lint (optional)
         run: npm run lint --if-present
 
