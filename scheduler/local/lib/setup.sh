@@ -1,4 +1,3 @@
-
 #!/bin/bash
 
 # 本機定時打卡設定腳本
@@ -38,6 +37,10 @@ warning() {
 
 error() {
     echo -e "${RED}[ERROR]${NC} $*"
+}
+
+debug() {
+    echo -e "${BLUE}[DEBUG]${NC} $*"
 }
 
 # 檢查系統需求
@@ -134,11 +137,23 @@ update_plist_paths() {
     local plist_file="$1"
     local temp_file="/tmp/$(basename "$plist_file")"
     
-    # 替換路徑中的用戶名
-    sed "s|/Users/jeffery.liu|$HOME|g" "$SCRIPT_DIR/../config/launchd/$plist_file" > "$temp_file"
+    # 複製原始檔案
+    cp "$SCRIPT_DIR/../config/launchd/$plist_file" "$temp_file"
     
-    # 替換專案路徑
-    sed -i '' "s|/Users/jeffery.liu/Projects/daily-tick-runner|$PROJECT_DIR|g" "$temp_file"
+    # 精確替換：針對不同的 XML 標籤使用不同的替換邏輯
+    
+    # 1. 替換 ProgramArguments 中的腳本路徑
+    sed -i '' "s|<string>/Users/jeffery.liu/Projects/daily-tick-runner/scheduler/local/bin/\([^<]*\)</string>|<string>$PROJECT_DIR/scheduler/local/bin/\1</string>|g" "$temp_file"
+    
+    # 2. 替換日誌路徑中的用戶名（StandardOutPath 和 StandardErrorPath）
+    sed -i '' "s|<string>/Users/jeffery.liu/\(\.daily-tick-runner/logs/[^<]*\)</string>|<string>$HOME/\1</string>|g" "$temp_file"
+    
+    # 3. 確保 WorkingDirectory 設定為專案根目錄
+    sed -i '' "s|<string>/Users/jeffery.liu/Projects/daily-tick-runner</string>|<string>$PROJECT_DIR</string>|g" "$temp_file"
+    
+    # 4. 如果 WorkingDirectory 仍然是用戶目錄，替換為專案根目錄（處理多行格式）
+    sed -i '' "s|<string>/Users/jeffery.liu</string>|<string>$PROJECT_DIR</string>|g" "$temp_file"
+    
     
     echo "$temp_file"
 }

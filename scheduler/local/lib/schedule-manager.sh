@@ -9,6 +9,7 @@ set -euo pipefail
 
 # 配置
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$(dirname "$(dirname "$SCRIPT_DIR")")")"
 LAUNCH_AGENTS_DIR="$HOME/Library/LaunchAgents"
 
 # 顏色輸出
@@ -92,7 +93,7 @@ update_plist_files() {
     
     <key>ProgramArguments</key>
     <array>
-        <string>$(dirname "$SCRIPT_DIR")/bin/trigger.sh</string>
+        <string>$PROJECT_DIR/scheduler/local/bin/trigger.sh</string>
         <string>checkin</string>
     </array>
     
@@ -130,7 +131,7 @@ EOF
     <false/>
     
     <key>WorkingDirectory</key>
-    <string>$HOME</string>
+    <string>$PROJECT_DIR</string>
     
     <key>EnvironmentVariables</key>
     <dict>
@@ -152,7 +153,7 @@ EOF
     
     <key>ProgramArguments</key>
     <array>
-        <string>$(dirname "$SCRIPT_DIR")/bin/trigger.sh</string>
+        <string>$PROJECT_DIR/scheduler/local/bin/trigger.sh</string>
         <string>checkout</string>
     </array>
     
@@ -190,7 +191,7 @@ EOF
     <false/>
     
     <key>WorkingDirectory</key>
-    <string>$HOME</string>
+    <string>$PROJECT_DIR</string>
     
     <key>EnvironmentVariables</key>
     <dict>

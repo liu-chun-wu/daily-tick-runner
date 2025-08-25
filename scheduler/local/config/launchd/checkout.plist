@@ -68,7 +68,7 @@
     <false/>
     
     <key>WorkingDirectory</key>
-    <string>/Users/jeffery.liu</string>
+    <string>/Users/jeffery.liu/Projects/daily-tick-runner</string>
     
     <key>EnvironmentVariables</key>
     <dict>

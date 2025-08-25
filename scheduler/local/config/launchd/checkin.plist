@@ -15,41 +15,41 @@
     <array>
         <dict>
             <key>Hour</key>
-            <integer>12</integer>
+            <integer>13</integer>
             <key>Minute</key>
-            <integer>28</integer>
+            <integer>35</integer>
             <key>Weekday</key>
             <integer>1</integer>
         </dict>
         <dict>
             <key>Hour</key>
-            <integer>12</integer>
+            <integer>13</integer>
             <key>Minute</key>
-            <integer>28</integer>
+            <integer>35</integer>
             <key>Weekday</key>
             <integer>2</integer>
         </dict>
         <dict>
             <key>Hour</key>
-            <integer>12</integer>
+            <integer>13</integer>
             <key>Minute</key>
-            <integer>28</integer>
+            <integer>35</integer>
             <key>Weekday</key>
             <integer>3</integer>
         </dict>
         <dict>
             <key>Hour</key>
-            <integer>12</integer>
+            <integer>13</integer>
             <key>Minute</key>
-            <integer>28</integer>
+            <integer>35</integer>
             <key>Weekday</key>
             <integer>4</integer>
         </dict>
         <dict>
             <key>Hour</key>
-            <integer>12</integer>
+            <integer>13</integer>
             <key>Minute</key>
-            <integer>28</integer>
+            <integer>35</integer>
             <key>Weekday</key>
             <integer>5</integer>
         </dict>
@@ -68,7 +68,7 @@
     <false/>
     
     <key>WorkingDirectory</key>
-    <string>/Users/jeffery.liu</string>
+    <string>/Users/jeffery.liu/Projects/daily-tick-runner</string>
     
     <key>EnvironmentVariables</key>
     <dict>
