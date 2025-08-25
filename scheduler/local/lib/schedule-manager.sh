@@ -54,6 +54,7 @@ update_config_file() {
     local new_checkin_minute="$2"
     local new_checkout_hour="$3"
     local new_checkout_minute="$4"
+    local new_workdays="$5"
     
     # 備份原配置
     cp "$SCRIPT_DIR/../config/schedule.conf" "$SCRIPT_DIR/../config/schedule.conf.bak"
@@ -66,7 +67,10 @@ update_config_file() {
     sed -i '' "s/^CHECKOUT_HOUR=.*/CHECKOUT_HOUR=$new_checkout_hour/" "$SCRIPT_DIR/../config/schedule.conf"
     sed -i '' "s/^CHECKOUT_MINUTE=.*/CHECKOUT_MINUTE=$new_checkout_minute/" "$SCRIPT_DIR/../config/schedule.conf"
     
-    # 窗口現在會自動計算，不需要手動更新
+    # 更新工作天
+    if [[ -n "$new_workdays" ]]; then
+        sed -i '' "s/^WORKDAYS=.*/WORKDAYS=($new_workdays)/" "$SCRIPT_DIR/../config/schedule.conf"
+    fi
     
     success "配置文件已更新"
 }
@@ -79,6 +83,9 @@ update_plist_files() {
     local checkout_minute="$4"
     
     info "更新 plist 文件..."
+    
+    # 重新載入配置以獲取最新的 WORKDAYS
+    source "$SCRIPT_DIR/../config/schedule.conf"
     
     # 創建臨時 plist 文件
     
@@ -101,8 +108,8 @@ update_plist_files() {
     <array>
 EOF
     
-    # 添加週一到週五
-    for day in 1 2 3 4 5; do
+    # 根據 WORKDAYS 設定添加工作天
+    for day in "${WORKDAYS[@]}"; do
         cat >> "$SCRIPT_DIR/../config/launchd/checkin.plist" << EOF
         <dict>
             <key>Hour</key>
@@ -161,8 +168,8 @@ EOF
     <array>
 EOF
     
-    # 添加週一到週五
-    for day in 1 2 3 4 5; do
+    # 根據 WORKDAYS 設定添加工作天
+    for day in "${WORKDAYS[@]}"; do
         cat >> "$SCRIPT_DIR/../config/launchd/checkout.plist" << EOF
         <dict>
             <key>Hour</key>
@@ -252,23 +259,78 @@ interactive_update() {
     read -p "簽退分鐘 [當前: $CHECKOUT_MINUTE]: " new_checkout_minute
     new_checkout_minute=${new_checkout_minute:-$CHECKOUT_MINUTE}
     
+    # 工作天設定
+    echo
+    echo -e "${CYAN}[工作天設定]${NC}"
+    echo -n "當前工作天: "
+    for day in "${WORKDAYS[@]}"; do
+        case $day in
+            1) echo -n "週一 " ;;
+            2) echo -n "週二 " ;;
+            3) echo -n "週三 " ;;
+            4) echo -n "週四 " ;;
+            5) echo -n "週五 " ;;
+            6) echo -n "週六 " ;;
+            7) echo -n "週日 " ;;
+        esac
+    done
+    echo
+    echo
+    
+    read -p "是否要修改工作天? (y/N): " -n 1 -r
+    echo
+    
+    local new_workdays=""
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        echo "請選擇需要打卡的工作天："
+        echo "  1 = 週一"
+        echo "  2 = 週二"
+        echo "  3 = 週三"
+        echo "  4 = 週四"
+        echo "  5 = 週五"
+        echo "  6 = 週六"
+        echo "  7 = 週日"
+        echo
+        read -p "輸入數字（用空格分隔，例如: 1 3 5）: " selected_days
+        if [[ -n "$selected_days" ]]; then
+            new_workdays="$selected_days"
+        else
+            new_workdays="${WORKDAYS[@]}"
+        fi
+    else
+        new_workdays="${WORKDAYS[@]}"
+    fi
+    
     # 確認更新
     echo
-    echo -e "${YELLOW}新的時間設定:${NC}"
+    echo -e "${YELLOW}新的設定:${NC}"
     echo "簽到: $(printf "%02d:%02d" $new_checkin_hour $new_checkin_minute)"
     echo "簽退: $(printf "%02d:%02d" $new_checkout_hour $new_checkout_minute)"
+    echo -n "工作天: "
+    for day in $new_workdays; do
+        case $day in
+            1) echo -n "週一 " ;;
+            2) echo -n "週二 " ;;
+            3) echo -n "週三 " ;;
+            4) echo -n "週四 " ;;
+            5) echo -n "週五 " ;;
+            6) echo -n "週六 " ;;
+            7) echo -n "週日 " ;;
+        esac
+    done
+    echo
     echo
     
     read -p "確定要更新嗎? (y/N): " -n 1 -r
     echo
     
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        update_config_file "$new_checkin_hour" "$new_checkin_minute" "$new_checkout_hour" "$new_checkout_minute"
+        update_config_file "$new_checkin_hour" "$new_checkin_minute" "$new_checkout_hour" "$new_checkout_minute" "$new_workdays"
         update_plist_files "$new_checkin_hour" "$new_checkin_minute" "$new_checkout_hour" "$new_checkout_minute"
         reload_launchd
         
         echo
-        success "時間設定已更新完成！"
+        success "設定已更新完成！"
         echo
         echo "新的設定:"
         source "$SCRIPT_DIR/../config/schedule.conf"
@@ -317,7 +379,7 @@ quick_update() {
     echo "簽到: $(printf "%02d:%02d" $new_checkin_hour $new_checkin_minute)"
     echo "簽退: $(printf "%02d:%02d" $new_checkout_hour $new_checkout_minute)"
     
-    update_config_file "$new_checkin_hour" "$new_checkin_minute" "$new_checkout_hour" "$new_checkout_minute"
+    update_config_file "$new_checkin_hour" "$new_checkin_minute" "$new_checkout_hour" "$new_checkout_minute" ""
     update_plist_files "$new_checkin_hour" "$new_checkin_minute" "$new_checkout_hour" "$new_checkout_minute"
     reload_launchd
     

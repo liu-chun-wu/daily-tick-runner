@@ -495,15 +495,40 @@ show_status() {
     
     echo
     info "排程時間:"
-    echo "  簽到: 週一至週五 $(format_time $CHECKIN_HOUR $CHECKIN_MINUTE)"
-    echo "  簽退: 週一至週五 $(format_time $CHECKOUT_HOUR $CHECKOUT_MINUTE)"
+    echo -n "  簽到: "
+    for day in "${WORKDAYS[@]}"; do
+        case $day in
+            1) echo -n "週一 " ;;
+            2) echo -n "週二 " ;;
+            3) echo -n "週三 " ;;
+            4) echo -n "週四 " ;;
+            5) echo -n "週五 " ;;
+            6) echo -n "週六 " ;;
+            7) echo -n "週日 " ;;
+        esac
+    done
+    echo "$(format_time $CHECKIN_HOUR $CHECKIN_MINUTE)"
+    
+    echo -n "  簽退: "
+    for day in "${WORKDAYS[@]}"; do
+        case $day in
+            1) echo -n "週一 " ;;
+            2) echo -n "週二 " ;;
+            3) echo -n "週三 " ;;
+            4) echo -n "週四 " ;;
+            5) echo -n "週五 " ;;
+            6) echo -n "週六 " ;;
+            7) echo -n "週日 " ;;
+        esac
+    done
+    echo "$(format_time $CHECKOUT_HOUR $CHECKOUT_MINUTE)"
     
     # 計算下次執行時間
     local current_hour=$(date +%H | sed 's/^0//')
     local current_minute=$(date +%M | sed 's/^0//')
     local day_of_week=$(date +%u)
     
-    if [[ $day_of_week -le 5 ]]; then  # 工作日
+    if is_workday; then  # 工作日
         if [[ $current_hour -lt $CHECKIN_HOUR ]] || 
            [[ $current_hour -eq $CHECKIN_HOUR && $current_minute -lt $CHECKIN_MINUTE ]]; then
             echo "  下次執行: 今日 $(format_time $CHECKIN_HOUR $CHECKIN_MINUTE) (簽到)"
