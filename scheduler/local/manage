@@ -58,11 +58,11 @@ show_help() {
     echo "  start           啟動排程 (等同 install)"
     echo "  stop            停止排程 (等同 uninstall)"
     echo "  status          查看排程狀態"
-    echo "  check-time      檢查當前時間窗口"
+    echo "  check-time      檢查排程時間資訊"
     echo "  dispatch        直接觸發workflow"
     echo "  logs [選項]     查看日誌"
     echo "  update-time     更新執行時間設定"
-    echo "  test            測試執行（檢查時間窗口）"
+    echo "  test <action>   測試執行（需指定 checkin 或 checkout）"
     echo "  help            顯示此幫助訊息"
     echo
     echo "日誌選項:"
@@ -77,7 +77,7 @@ show_help() {
     echo "範例:"
     echo "  $0 install                     # 安裝定時打卡"
     echo "  $0 status                      # 查看狀態"
-    echo "  $0 check-time                  # 檢查時間窗口"
+    echo "  $0 check-time                  # 檢查排程時間"
     echo "  $0 dispatch checkin            # 直接觸發簽到"
     echo "  $0 dispatch checkout production # 觸發正式簽退"
     echo "  $0 logs latest                 # 查看最新日誌"
@@ -104,13 +104,21 @@ do_status() {
 
 # 測試執行
 do_test() {
-    info "執行測試..."
-    "$LIB_DIR/setup.sh" test
+    if [[ $# -lt 1 ]]; then
+        error "測試需要指定動作類型"
+        echo "用法: $0 test <checkin|checkout>"
+        echo "範例: $0 test checkin  # 測試簽到"
+        exit 1
+    fi
+    
+    local action_type="$1"
+    info "執行測試: $action_type"
+    "$LIB_DIR/setup.sh" test "$action_type"
 }
 
-# 檢查時間窗口
+# 檢查排程時間
 do_check_time() {
-    "$LIB_DIR/time-checker.sh" full
+    "$LIB_DIR/time-checker.sh"
 }
 
 # 直接觸發 workflow
@@ -216,7 +224,7 @@ main() {
             do_update_time "$@"
             ;;
         "test")
-            do_test
+            do_test "$@"
             ;;
         "check-time")
             do_check_time

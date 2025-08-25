@@ -7,15 +7,17 @@
 ```
 scheduler/local/
 ├── bin/                        # 執行檔
-│   └── trigger.sh              # 主程式 - 觸發打卡
+│   ├── trigger.sh              # 主程式 - 觸發打卡（需要參數）
+│   └── dispatch.sh             # 手動觸發工具
 ├── config/                     # 配置檔
 │   ├── schedule.conf           # 時間設定配置
 │   └── launchd/               # macOS 排程配置
-│       ├── checkin.plist       # 簽到任務配置
-│       └── checkout.plist      # 簽退任務配置
+│       ├── checkin.plist       # 簽到任務配置（含參數）
+│       └── checkout.plist      # 簽退任務配置（含參數）
 ├── lib/                        # 內部工具庫
 │   ├── setup.sh               # 安裝與管理工具
 │   ├── schedule-manager.sh    # 時間設定管理
+│   ├── time-checker.sh        # 排程資訊檢視
 │   └── log-viewer.sh          # 日誌檢視工具
 ├── docs/                       # 文件
 │   └── README.md              # 本文件
@@ -56,6 +58,9 @@ cd scheduler/local
 # 查看排程狀態
 ./manage status
 
+# 查看排程時間資訊
+./manage check-time
+
 # 查看最新執行日誌
 ./manage logs latest
 ```
@@ -74,11 +79,29 @@ cd scheduler/local
 # 查看狀態
 ./manage status
 
-# 測試執行
-./manage test
+# 測試執行（需指定動作）
+./manage test checkin   # 測試簽到
+./manage test checkout  # 測試簽退
+
+# 查看排程時間資訊
+./manage check-time
 
 # 顯示幫助
 ./manage help
+```
+
+### 手動觸發
+
+```bash
+# 手動觸發簽到
+./manage dispatch checkin
+
+# 手動觸發簽退
+./manage dispatch checkout
+
+# 使用不同的 workflow
+./manage dispatch checkin production
+./manage dispatch checkout production
 ```
 
 ### 日誌管理
@@ -132,21 +155,16 @@ cd scheduler/local
 
 - **簽到時間**: 週一到週五 08:30
 - **簽退時間**: 週一到週五 18:00
-- **自動判斷**: 腳本會根據當前時間自動判斷執行簽到或簽退
 
-### 時間窗口機制
+### 工作原理
 
-本排程器採用「時間窗口」機制，提供彈性的執行時間：
+本排程器採用簡化的參數化設計：
 
-```bash
-# 簽到時間窗口 (預設 7:00-10:00)
-CHECKIN_START_HOUR=7
-CHECKIN_END_HOUR=9
-
-# 簽退時間窗口 (預設 17:00-19:00)  
-CHECKOUT_START_HOUR=17
-CHECKOUT_END_HOUR=19
-```
+1. **plist 控制時間**: macOS launchd 根據 plist 配置在指定時間執行
+2. **參數決定動作**: 
+   - `checkin.plist` 傳遞 `checkin` 參數給 `trigger.sh`
+   - `checkout.plist` 傳遞 `checkout` 參數給 `trigger.sh`
+3. **無時間判斷**: 腳本不再判斷時間，直接執行指定動作
 
 ### 自訂時間設定
 
@@ -160,13 +178,18 @@ CHECKOUT_END_HOUR=19
 ./manage update-time 9 30 18 0  # 9:30 簽到, 18:00 簽退
 ```
 
+更新時間後會自動：
+1. 更新 `schedule.conf` 配置檔
+2. 重新生成 plist 檔案（含正確參數）
+3. 重新載入 launchd 任務
+
 ## 📁 檔案位置
 
 ### 系統檔案
 
-- **執行檔**: `bin/trigger.sh`
+- **執行檔**: `bin/trigger.sh` (需要 checkin/checkout 參數)
 - **配置檔**: `config/schedule.conf`
-- **launchd 任務**: `~/Library/LaunchAgents/com.daily-tick-runner.*.plist`
+- **launchd 任務**: `~/Library/LaunchAgents/checkin.plist` 和 `checkout.plist`
 
 ### 日誌檔案
 
@@ -178,23 +201,30 @@ CHECKOUT_END_HOUR=19
 
 ### 自訂工作日
 
-修改 `config/schedule.conf` 中的 `is_workday` 函數：
+修改 `config/schedule.conf` 中的 `WORKDAYS` 陣列：
 
 ```bash
-is_workday() {
-    local day_of_week=$(date +%u)  # 1=Monday, 7=Sunday
-    # 預設: 週一到週五 (1-5) 為工作日
-    [[ $day_of_week -ge 1 && $day_of_week -le 5 ]]
-}
+# 1=週一, 2=週二, 3=週三, 4=週四, 5=週五, 6=週六, 7=週日
+WORKDAYS=(1 2 3 4 5)    # 預設週一到週五
 ```
 
 ### 修改日誌等級
 
-在 `bin/trigger.sh` 中調整日誌等級：
+執行時指定日誌等級：
 
 ```bash
-# 將 INFO 改為 DEBUG 以獲得更詳細的日誌
-trigger_workflow "$action_type" "DEBUG"
+# 使用 DEBUG 等級執行
+./bin/trigger.sh checkin DEBUG
+./bin/trigger.sh checkout DEBUG
+```
+
+### 直接使用 trigger.sh
+
+```bash
+# trigger.sh 現在需要參數
+./bin/trigger.sh checkin              # 執行簽到
+./bin/trigger.sh checkout             # 執行簽退
+./bin/trigger.sh checkin DEBUG        # 使用 DEBUG 日誌等級
 ```
 
 ## 🚨 故障排除
@@ -220,20 +250,19 @@ trigger_workflow "$action_type" "DEBUG"
    log show --predicate 'subsystem == "com.apple.launchd"' --last 1h
    ```
 
-4. **時間設定問題**
+4. **測試執行錯誤**
    ```bash
-   # 查看當前設定
-   ./manage update-time show
-   
-   # 重新設定合理的時間窗口
-   ./manage update-time 8 30 18 0
+   # 記得指定動作類型
+   ./manage test checkin   # 正確
+   ./manage test           # 錯誤：缺少參數
    ```
 
 ### 除錯模式
 
 ```bash
-# 手動執行查看詳細輸出
-./bin/trigger.sh
+# 手動執行查看詳細輸出（需指定參數）
+./bin/trigger.sh checkin
+./bin/trigger.sh checkout
 
 # 監控即時日誌
 ./manage logs monitor
@@ -255,6 +284,9 @@ trigger_workflow "$action_type" "DEBUG"
 
 # 查看排程狀態
 ./manage status
+
+# 查看排程時間資訊
+./manage check-time
 ```
 
 ### 維護任務
@@ -267,7 +299,8 @@ trigger_workflow "$action_type" "DEBUG"
 cat config/schedule.conf
 
 # 測試執行
-./manage test
+./manage test checkin
+./manage test checkout
 ```
 
 ## 🔐 安全注意事項
@@ -292,18 +325,26 @@ cat config/schedule.conf
 
 ### 一次性操作
 ```bash
-./manage install    # 安裝
-./manage uninstall  # 卸載  
-./manage status     # 狀態
-./manage test       # 測試
+./manage install         # 安裝
+./manage uninstall       # 卸載  
+./manage status          # 狀態
+./manage check-time      # 查看排程時間
+```
+
+### 測試與手動執行
+```bash
+./manage test checkin    # 測試簽到
+./manage test checkout   # 測試簽退
+./manage dispatch checkin    # 手動簽到
+./manage dispatch checkout   # 手動簽退
 ```
 
 ### 日常維護
 ```bash
-./manage logs latest         # 查看日誌
-./manage logs stats          # 統計資訊
-./manage update-time        # 更新時間
-./manage logs cleanup       # 清理日誌
+./manage logs latest     # 查看日誌
+./manage logs stats      # 統計資訊
+./manage update-time     # 更新時間
+./manage logs cleanup    # 清理日誌
 ```
 
-*本排程器採用模組化設計，所有操作都透過統一的 `manage` 命令進行*
+*本排程器採用簡化的參數化設計，所有操作都透過統一的 `manage` 命令進行，plist 負責時間控制，參數決定執行動作*

@@ -92,7 +92,8 @@ update_plist_files() {
     
     <key>ProgramArguments</key>
     <array>
-        <string>$SCRIPT_DIR/../bin/trigger.sh</string>
+        <string>$(dirname "$SCRIPT_DIR")/bin/trigger.sh</string>
+        <string>checkin</string>
     </array>
     
     <key>StartCalendarInterval</key>
@@ -129,7 +130,7 @@ EOF
     <false/>
     
     <key>WorkingDirectory</key>
-    <string>$(dirname "$(dirname "$SCRIPT_DIR")")</string>
+    <string>$HOME</string>
     
     <key>EnvironmentVariables</key>
     <dict>
@@ -151,7 +152,8 @@ EOF
     
     <key>ProgramArguments</key>
     <array>
-        <string>$SCRIPT_DIR/../bin/trigger.sh</string>
+        <string>$(dirname "$SCRIPT_DIR")/bin/trigger.sh</string>
+        <string>checkout</string>
     </array>
     
     <key>StartCalendarInterval</key>
@@ -188,7 +190,7 @@ EOF
     <false/>
     
     <key>WorkingDirectory</key>
-    <string>$(dirname "$(dirname "$SCRIPT_DIR")")</string>
+    <string>$HOME</string>
     
     <key>EnvironmentVariables</key>
     <dict>
@@ -207,46 +209,6 @@ EOF
 # 重新載入 launchd 任務
 reload_launchd() {
     info "重新載入 launchd 任務..."
-    
-    # 檢查是否在打卡時間窗口內
-    local current_hour=$(date +%H | sed 's/^0//')
-    local current_minute=$(date +%M | sed 's/^0//')
-    local current_total_minutes=$((current_hour * 60 + current_minute))
-    
-    # 載入配置以獲取時間窗口
-    source "$SCRIPT_DIR/../config/schedule.conf"
-    
-    # 使用動態計算的時間窗口
-    local checkin_bounds=($(get_checkin_window))
-    local checkout_bounds=($(get_checkout_window))
-    
-    # 檢查是否在簽到時間窗口
-    if [[ $current_total_minutes -ge ${checkin_bounds[0]} && $current_total_minutes -le ${checkin_bounds[1]} ]]; then
-        local start_time=$(printf "%02d:%02d" $((checkin_bounds[0] / 60)) $((checkin_bounds[0] % 60)))
-        local end_time=$(printf "%02d:%02d" $((checkin_bounds[1] / 60)) $((checkin_bounds[1] % 60)))
-        warning "目前在簽到時間窗口內 ($start_time-$end_time)"
-        warning "更新配置可能會影響正在執行的打卡任務"
-        read -p "確定要繼續嗎? (y/N): " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            info "取消更新"
-            return 1
-        fi
-    fi
-    
-    # 檢查是否在簽退時間窗口
-    if [[ $current_total_minutes -ge ${checkout_bounds[0]} && $current_total_minutes -le ${checkout_bounds[1]} ]]; then
-        local start_time=$(printf "%02d:%02d" $((checkout_bounds[0] / 60)) $((checkout_bounds[0] % 60)))
-        local end_time=$(printf "%02d:%02d" $((checkout_bounds[1] / 60)) $((checkout_bounds[1] % 60)))
-        warning "目前在簽退時間窗口內 ($start_time-$end_time)"
-        warning "更新配置可能會影響正在執行的打卡任務"
-        read -p "確定要繼續嗎? (y/N): " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            info "取消更新"
-            return 1
-        fi
-    fi
     
     # 檢查是否已安裝
     if [[ -f "$LAUNCH_AGENTS_DIR/checkin.plist" ]]; then

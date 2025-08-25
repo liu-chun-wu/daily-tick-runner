@@ -1,9 +1,8 @@
-
 #!/bin/bash
 
 # 自動打卡觸發腳本
 # 作者: Claude Code
-# 用途: 根據當前時間自動判斷並觸發 GitHub Actions workflow
+# 用途: 根據參數觸發對應的 GitHub Actions workflow
 
 set -euo pipefail
 
@@ -12,9 +11,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOG_DIR="$HOME/.daily-tick-runner/logs"
 LOG_FILE="$LOG_DIR/auto-punch-$(date +%Y%m).log"
 WORKFLOW_NAME="正式排程 - 自動打卡"
-
-# 載入時間配置
-source "$SCRIPT_DIR/../config/schedule.conf"
 
 # 建立日誌目錄
 mkdir -p "$LOG_DIR"
@@ -42,6 +38,20 @@ log_warning() {
     log "WARNING" "$@"
 }
 
+# 顯示使用說明
+show_usage() {
+    echo "用法: $0 <action_type> [log_level]"
+    echo ""
+    echo "參數:"
+    echo "  action_type  必需，動作類型: checkin 或 checkout"
+    echo "  log_level    可選，日誌等級，預設為 INFO"
+    echo ""
+    echo "範例:"
+    echo "  $0 checkin              # 執行簽到"
+    echo "  $0 checkout             # 執行簽退"
+    echo "  $0 checkin DEBUG        # 執行簽到，使用 DEBUG 日誌等級"
+}
+
 # 檢查必要工具
 check_requirements() {
     log_info "檢查系統需求..."
@@ -57,88 +67,6 @@ check_requirements() {
     fi
     
     log_info "系統需求檢查完成"
-}
-
-# 判斷執行動作 - 只返回結果，不輸出日誌
-get_action_type() {
-    local current_hour=$(date +%H | sed 's/^0//')
-    local current_minute=$(date +%M | sed 's/^0//')
-    local day_of_week=$(date +%u)  # 1=Monday, 7=Sunday
-    
-    # 檢查是否為工作日
-    if ! is_workday; then
-        return 1
-    fi
-    
-    # 計算當前時間的總分鐘數
-    local current_total_minutes=$((current_hour * 60 + current_minute))
-    
-    # 使用動態計算的簽到時間窗口
-    local checkin_bounds=($(get_checkin_window))
-    local checkin_start=${checkin_bounds[0]}
-    local checkin_end=${checkin_bounds[1]}
-    
-    # 使用動態計算的簽退時間窗口
-    local checkout_bounds=($(get_checkout_window))
-    local checkout_start=${checkout_bounds[0]}
-    local checkout_end=${checkout_bounds[1]}
-    
-    # 判斷時間窗口（精確到分鐘）
-    if [[ $current_total_minutes -ge $checkin_start && $current_total_minutes -le $checkin_end ]]; then
-        echo "checkin"
-        return 0
-    elif [[ $current_total_minutes -ge $checkout_start && $current_total_minutes -le $checkout_end ]]; then
-        echo "checkout"
-        return 0
-    else
-        return 1
-    fi
-}
-
-# 記錄判斷過程的日誌
-log_time_determination() {
-    local current_hour=$(date +%H | sed 's/^0//')
-    local current_minute=$(date +%M | sed 's/^0//')
-    local current_time=$(printf "%02d:%02d" $current_hour $current_minute)
-    local day_of_week=$(date +%u)  # 1=Monday, 7=Sunday
-    
-    log_debug "當前時間: $current_time, 星期: $day_of_week"
-    
-    # 檢查是否為工作日
-    if ! is_workday; then
-        log_info "今天不是工作日，不執行打卡"
-        return
-    fi
-    
-    # 計算當前時間的總分鐘數
-    local current_total_minutes=$((current_hour * 60 + current_minute))
-    
-    # 使用動態計算的簽到時間窗口
-    local checkin_bounds=($(get_checkin_window))
-    local checkin_start=${checkin_bounds[0]}
-    local checkin_end=${checkin_bounds[1]}
-    
-    # 使用動態計算的簽退時間窗口
-    local checkout_bounds=($(get_checkout_window))
-    local checkout_start=${checkout_bounds[0]}
-    local checkout_end=${checkout_bounds[1]}
-    
-    # 轉換回時間格式顯示
-    local checkin_start_time=$(printf "%02d:%02d" $((checkin_start / 60)) $((checkin_start % 60)))
-    local checkin_end_time=$(printf "%02d:%02d" $((checkin_end / 60)) $((checkin_end % 60)))
-    local checkout_start_time=$(printf "%02d:%02d" $((checkout_start / 60)) $((checkout_start % 60)))
-    local checkout_end_time=$(printf "%02d:%02d" $((checkout_end / 60)) $((checkout_end % 60)))
-    
-    # 判斷時間窗口並記錄日誌
-    if [[ $current_total_minutes -ge $checkin_start && $current_total_minutes -le $checkin_end ]]; then
-        log_info "在簽到時間窗口內 ($checkin_start_time-$checkin_end_time)"
-    elif [[ $current_total_minutes -ge $checkout_start && $current_total_minutes -le $checkout_end ]]; then
-        log_info "在簽退時間窗口內 ($checkout_start_time-$checkout_end_time)"
-    else
-        log_info "當前時間 ($current_time) 不在打卡時段內"
-        log_debug "簽到窗口: $checkin_start_time-$checkin_end_time (設定時間 $(printf "%02d:%02d" $CHECKIN_HOUR $CHECKIN_MINUTE) ± ${WINDOW_SIZE_MINUTES}分鐘)"
-        log_debug "簽退窗口: $checkout_start_time-$checkout_end_time (設定時間 $(printf "%02d:%02d" $CHECKOUT_HOUR $CHECKOUT_MINUTE) ± ${WINDOW_SIZE_MINUTES}分鐘)"
-    fi
 }
 
 # 觸發 workflow
@@ -219,29 +147,36 @@ trigger_workflow() {
 
 # 主函數
 main() {
+    # 檢查參數
+    if [[ $# -lt 1 ]]; then
+        log_error "錯誤: 缺少必要參數"
+        show_usage
+        exit 1
+    fi
+    
+    local action_type="$1"
+    local log_level="${2:-INFO}"
+    
+    # 驗證 action_type
+    if [[ "$action_type" != "checkin" && "$action_type" != "checkout" ]]; then
+        log_error "錯誤: 無效的 action_type: $action_type"
+        show_usage
+        exit 1
+    fi
+    
     log_info "========== 自動打卡程序開始 =========="
+    log_info "執行動作: $action_type"
     
     # 檢查需求
     check_requirements
     
-    # 記錄時間判斷過程
-    log_time_determination
-    
-    # 判斷執行動作
-    if action_type=$(get_action_type); then
-        log_info "判斷結果: 需要執行 $action_type"
-        
-        # 觸發 workflow
-        if trigger_workflow "$action_type" "INFO"; then
-            log_info "自動打卡執行成功"
-            exit 0
-        else
-            log_error "自動打卡執行失敗"
-            exit 1
-        fi
-    else
-        log_info "當前時間不需要執行打卡動作"
+    # 觸發 workflow
+    if trigger_workflow "$action_type" "$log_level"; then
+        log_info "自動打卡執行成功: $action_type"
         exit 0
+    else
+        log_error "自動打卡執行失敗: $action_type"
+        exit 1
     fi
 }
 
