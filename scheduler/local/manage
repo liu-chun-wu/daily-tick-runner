@@ -56,6 +56,8 @@ show_help() {
     echo "  install         安裝定時打卡排程"
     echo "  uninstall       卸載定時打卡排程"
     echo "  status          查看排程狀態"
+    echo "  diagnose        診斷系統配置和延遲問題"
+    echo "  wake            管理系統喚醒排程"
     echo "  dispatch        直接觸發workflow"
     echo "  logs [選項]     查看日誌"
     echo "  update-time     更新執行時間設定"
@@ -73,12 +75,13 @@ show_help() {
     echo "範例:"
     echo "  $0 install                     # 安裝定時打卡"
     echo "  $0 status                      # 查看狀態"
+    echo "  $0 diagnose                    # 診斷延遲問題"
+    echo "  $0 wake setup                  # 設置系統喚醒"
     echo "  $0 dispatch checkin            # 直接觸發簽到"
     echo "  $0 dispatch checkout production # 觸發正式簽退"
     echo "  $0 logs latest                 # 查看最新日誌"
     echo "  $0 logs search ERROR           # 搜尋錯誤訊息"
     echo "  $0 update-time                 # 更新執行時間"
-    echo "  $0 dispatch checkin            # 測試簽到觸發"
 }
 
 # 執行安裝
@@ -108,6 +111,17 @@ do_dispatch() {
 # 更新時間設定
 do_update_time() {
     "$LIB_DIR/schedule-manager.sh" "$@"
+}
+
+# 執行診斷
+do_diagnose() {
+    "$SCRIPT_DIR/bin/diagnose.sh" "$@"
+}
+
+# 管理系統喚醒
+do_wake() {
+    local action="${1:-show}"
+    "$SCRIPT_DIR/bin/wake-scheduler.sh" "$action"
 }
 
 # 處理日誌命令
@@ -189,6 +203,12 @@ main() {
             ;;
         "status")
             do_status
+            ;;
+        "diagnose")
+            do_diagnose "$@"
+            ;;
+        "wake")
+            do_wake "$@"
             ;;
         "logs")
             do_logs "$@"

@@ -147,6 +147,11 @@ trigger_workflow() {
 
 # 主函數
 main() {
+    # 記錄啟動時間和延遲
+    local start_time=$(date '+%Y-%m-%d %H:%M:%S')
+    local scheduled_hour
+    local scheduled_minute
+    
     # 檢查參數
     if [[ $# -lt 1 ]]; then
         log_error "錯誤: 缺少必要參數"
@@ -164,8 +169,45 @@ main() {
         exit 1
     fi
     
-    log_info "========== 自動打卡程序開始 =========="
-    log_info "執行動作: $action_type"
+    # 載入配置以獲取排程時間
+    CONFIG_FILE="$SCRIPT_DIR/../config/schedule.conf"
+    if [[ -f "$CONFIG_FILE" ]]; then
+        source "$CONFIG_FILE"
+        if [[ "$action_type" == "checkin" ]]; then
+            scheduled_hour=$CHECKIN_HOUR
+            scheduled_minute=$CHECKIN_MINUTE
+        else
+            scheduled_hour=$CHECKOUT_HOUR
+            scheduled_minute=$CHECKOUT_MINUTE
+        fi
+        
+        # 計算延遲
+        local current_hour=$(date '+%-H')
+        local current_minute=$(date '+%-M')
+        local current_second=$(date '+%-S')
+        local delay_minutes=$((current_minute - scheduled_minute))
+        local delay_seconds=$current_second
+        
+        if [[ $current_hour -ne $scheduled_hour ]]; then
+            delay_minutes=$((delay_minutes + (current_hour - scheduled_hour) * 60))
+        fi
+        
+        log_info "========== 自動打卡程序開始 =========="
+        log_info "執行動作: $action_type"
+        log_info "啟動時間: $start_time"
+        log_info "排程時間: $(printf "%02d:%02d:00" "$scheduled_hour" "$scheduled_minute")"
+        
+        if [[ $delay_minutes -gt 0 || $delay_seconds -gt 0 ]]; then
+            log_warning "執行延遲: ${delay_minutes} 分 ${delay_seconds} 秒"
+            log_debug "系統負載: $(uptime | awk -F'load averages:' '{print $2}')"
+        else
+            log_info "準時執行 ✅"
+        fi
+    else
+        log_info "========== 自動打卡程序開始 =========="
+        log_info "執行動作: $action_type"
+        log_info "啟動時間: $start_time"
+    fi
     
     # 檢查需求
     check_requirements
