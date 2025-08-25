@@ -73,12 +73,10 @@ cd scheduler/local
 |------|------|------|
 | `install` | 安裝定時任務 | `./manage install` |
 | `uninstall` | 卸載定時任務 | `./manage uninstall` |
-| `status` | 查看運行狀態（增強版） | `./manage status` |
-| `check-time` | 檢查時間窗口 | `./manage check-time` |
+| `status` | 查看完整狀態（含時間資訊） | `./manage status` |
 | `dispatch` | 直接觸發 workflow | `./manage dispatch checkin` |
 | `logs` | 查看執行日誌 | `./manage logs latest` |
 | `update-time` | 更新執行時間 | `./manage update-time` |
-| `test` | 測試執行（檢查時間窗口） | `./manage test` |
 
 ### 狀態檢查
 
@@ -90,23 +88,10 @@ cd scheduler/local
 顯示內容：
 - ✅ 安裝狀態
 - ✅ GitHub CLI 認證狀態
-- 🕰 時間窗口狀態（新增）
+- 🕰 當前時間與排程時間
 - 📅 最後執行時間
 - ⏰ 下次執行時間
 - 📊 最近執行結果
-
-### 時間窗口檢查
-
-```bash
-# 檢查當前時間是否在打卡窗口內
-./manage check-time
-```
-
-顯示內容：
-- 當前時間與星期
-- 簽到/簽退窗口狀態
-- 視覺化時間條
-- 建議執行動作
 
 ### 直接觸發 Workflow
 
@@ -161,19 +146,6 @@ cd scheduler/local
 ./manage update-time 9 0 18 30  # 9:00 簽到, 18:30 簽退
 ```
 
-### 測試執行
-
-```bash
-# 測試執行（檢查時間窗口並根據結果觸發）
-./manage test
-```
-
-此命令會：
-- 檢查當前是否在時間窗口內
-- 如果在窗口內，自動觸發對應的 workflow
-- 如果不在窗口內，僅顯示狀態資訊
-
-如需直接觸發（不檢查時間），請使用 `dispatch` 命令。
 
 ## 進階設定
 
@@ -190,10 +162,9 @@ scheduler/local/
 │       ├── checkin.plist   # 簽到任務
 │       └── checkout.plist  # 簽退任務
 ├── lib/
-│   ├── setup.sh           # 安裝工具（增強 status）
+│   ├── setup.sh           # 安裝工具
 │   ├── schedule-manager.sh # 時間管理
-│   ├── log-viewer.sh      # 日誌檢視
-│   └── time-checker.sh    # 時間窗口檢查（新增）
+│   └── log-viewer.sh      # 日誌檢視
 ├── docs/
 │   └── README.md          # 詳細文檔
 └── manage                 # 統一管理入口（增強）
@@ -342,14 +313,14 @@ rm -rf ~/.daily-tick-runner
 
 ### 暫時停用
 
-```bash
-# 停用但不卸載
-launchctl unload ~/Library/LaunchAgents/com.daily-tick-runner.checkin.plist
-launchctl unload ~/Library/LaunchAgents/com.daily-tick-runner.checkout.plist
+如需暫時停用排程，直接使用卸載命令：
 
-# 重新啟用
-launchctl load ~/Library/LaunchAgents/com.daily-tick-runner.checkin.plist
-launchctl load ~/Library/LaunchAgents/com.daily-tick-runner.checkout.plist
+```bash
+# 卸載排程
+./manage uninstall
+
+# 需要時重新安裝
+./manage install
 ```
 
 ## 安全注意事項

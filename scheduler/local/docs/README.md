@@ -17,7 +17,6 @@ scheduler/local/
 ├── lib/                        # 內部工具庫
 │   ├── setup.sh               # 安裝與管理工具
 │   ├── schedule-manager.sh    # 時間設定管理
-│   ├── time-checker.sh        # 排程資訊檢視
 │   └── log-viewer.sh          # 日誌檢視工具
 ├── docs/                       # 文件
 │   └── README.md              # 本文件
@@ -58,9 +57,6 @@ cd scheduler/local
 # 查看排程狀態
 ./manage status
 
-# 查看排程時間資訊
-./manage check-time
-
 # 查看最新執行日誌
 ./manage logs latest
 ```
@@ -78,13 +74,6 @@ cd scheduler/local
 
 # 查看狀態
 ./manage status
-
-# 測試執行（需指定動作）
-./manage test checkin   # 測試簽到
-./manage test checkout  # 測試簽退
-
-# 查看排程時間資訊
-./manage check-time
 
 # 顯示幫助
 ./manage help
@@ -250,12 +239,6 @@ WORKDAYS=(1 2 3 4 5)    # 預設週一到週五
    log show --predicate 'subsystem == "com.apple.launchd"' --last 1h
    ```
 
-4. **測試執行錯誤**
-   ```bash
-   # 記得指定動作類型
-   ./manage test checkin   # 正確
-   ./manage test           # 錯誤：缺少參數
-   ```
 
 ### 除錯模式
 
@@ -284,9 +267,6 @@ WORKDAYS=(1 2 3 4 5)    # 預設週一到週五
 
 # 查看排程狀態
 ./manage status
-
-# 查看排程時間資訊
-./manage check-time
 ```
 
 ### 維護任務
@@ -297,10 +277,6 @@ WORKDAYS=(1 2 3 4 5)    # 預設週一到週五
 
 # 檢查配置檔案
 cat config/schedule.conf
-
-# 測試執行
-./manage test checkin
-./manage test checkout
 ```
 
 ## 🔐 安全注意事項
@@ -327,14 +303,11 @@ cat config/schedule.conf
 ```bash
 ./manage install         # 安裝
 ./manage uninstall       # 卸載  
-./manage status          # 狀態
-./manage check-time      # 查看排程時間
+./manage status          # 狀態（含時間資訊）
 ```
 
-### 測試與手動執行
+### 手動執行
 ```bash
-./manage test checkin    # 測試簽到
-./manage test checkout   # 測試簽退
 ./manage dispatch checkin    # 手動簽到
 ./manage dispatch checkout   # 手動簽退
 ```

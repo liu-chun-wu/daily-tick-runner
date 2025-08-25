@@ -400,177 +400,6 @@ uninstall_scheduler() {
     fi
 }
 
-# 啟用定時任務
-enable_scheduler() {
-    info "啟用定時打卡任務..."
-    
-    # 檢查當前安裝狀態
-    local status=$(check_installation_status)
-    
-    if [[ "$status" == "none" ]]; then
-        error "未檢測到已安裝的定時任務"
-        info "請先執行: ./manage install"
-        return 1
-    fi
-    
-    # 直接檢查狀態，不依賴全域變數
-    local checkin_exists=false
-    local checkout_exists=false
-    local checkin_running=false
-    local checkout_running=false
-    
-    if [[ -f "$LAUNCH_AGENTS_DIR/$CHECKIN_PLIST" ]]; then
-        checkin_exists=true
-    fi
-    if [[ -f "$LAUNCH_AGENTS_DIR/$CHECKOUT_PLIST" ]]; then
-        checkout_exists=true
-    fi
-    if launchctl list | grep -q "com.daily-tick-runner.checkin"; then
-        checkin_running=true
-    fi
-    if launchctl list | grep -q "com.daily-tick-runner.checkout"; then
-        checkout_running=true
-    fi
-    
-    local load_count=0
-    local skip_count=0
-    local error_count=0
-    
-    # 啟用簽到任務
-    if [[ "$checkin_exists" == true ]]; then
-        if [[ "$checkin_running" == true ]]; then
-            info "簽到任務已在運行中，跳過"
-            ((skip_count++))
-        else
-            if launchctl load "$LAUNCH_AGENTS_DIR/$CHECKIN_PLIST" 2>/dev/null; then
-                success "簽到任務已啟用"
-                ((load_count++))
-            else
-                error "簽到任務啟用失敗"
-                ((error_count++))
-            fi
-        fi
-    else
-        error "簽到配置檔案不存在"
-        ((error_count++))
-    fi
-    
-    # 啟用簽退任務
-    if [[ "$checkout_exists" == true ]]; then
-        if [[ "$checkout_running" == true ]]; then
-            info "簽退任務已在運行中，跳過"
-            ((skip_count++))
-        else
-            if launchctl load "$LAUNCH_AGENTS_DIR/$CHECKOUT_PLIST" 2>/dev/null; then
-                success "簽退任務已啟用"
-                ((load_count++))
-            else
-                error "簽退任務啟用失敗"
-                ((error_count++))
-            fi
-        fi
-    else
-        error "簽退配置檔案不存在"
-        ((error_count++))
-    fi
-    
-    # 結果報告
-    if [[ $error_count -gt 0 ]]; then
-        error "定時任務啟用過程中發生錯誤 (成功: $load_count, 跳過: $skip_count, 錯誤: $error_count)"
-        info "執行 './manage status' 查看詳細狀態"
-        return 1
-    elif [[ $load_count -gt 0 ]]; then
-        success "定時任務已啟用 (啟用了 $load_count 個任務，跳過了 $skip_count 個已運行的任務)"
-    else
-        info "所有任務都已在運行中，無需啟用"
-    fi
-}
-
-# 停用定時任務
-disable_scheduler() {
-    info "停用定時打卡任務..."
-    
-    # 檢查當前安裝狀態
-    local status=$(check_installation_status)
-    
-    if [[ "$status" == "none" ]]; then
-        warning "未檢測到已安裝的定時任務"
-        info "沒有需要停用的內容"
-        return 0
-    fi
-    
-    # 直接檢查狀態，不依賴全域變數
-    local checkin_exists=false
-    local checkout_exists=false
-    local checkin_running=false
-    local checkout_running=false
-    
-    if [[ -f "$LAUNCH_AGENTS_DIR/$CHECKIN_PLIST" ]]; then
-        checkin_exists=true
-    fi
-    if [[ -f "$LAUNCH_AGENTS_DIR/$CHECKOUT_PLIST" ]]; then
-        checkout_exists=true
-    fi
-    if launchctl list | grep -q "com.daily-tick-runner.checkin"; then
-        checkin_running=true
-    fi
-    if launchctl list | grep -q "com.daily-tick-runner.checkout"; then
-        checkout_running=true
-    fi
-    
-    local unload_count=0
-    local skip_count=0
-    local error_count=0
-    
-    # 停用簽到任務
-    if [[ "$checkin_exists" == true ]]; then
-        if [[ "$checkin_running" == false ]]; then
-            info "簽到任務未在運行，跳過"
-            ((skip_count++))
-        else
-            if launchctl unload "$LAUNCH_AGENTS_DIR/$CHECKIN_PLIST" 2>/dev/null; then
-                success "簽到任務已停用"
-                ((unload_count++))
-            else
-                error "簽到任務停用失敗"
-                ((error_count++))
-            fi
-        fi
-    else
-        warning "簽到配置檔案不存在，無法停用"
-        ((skip_count++))
-    fi
-    
-    # 停用簽退任務
-    if [[ "$checkout_exists" == true ]]; then
-        if [[ "$checkout_running" == false ]]; then
-            info "簽退任務未在運行，跳過"
-            ((skip_count++))
-        else
-            if launchctl unload "$LAUNCH_AGENTS_DIR/$CHECKOUT_PLIST" 2>/dev/null; then
-                success "簽退任務已停用"
-                ((unload_count++))
-            else
-                error "簽退任務停用失敗"
-                ((error_count++))
-            fi
-        fi
-    else
-        warning "簽退配置檔案不存在，無法停用"
-        ((skip_count++))
-    fi
-    
-    # 結果報告
-    if [[ $error_count -gt 0 ]]; then
-        error "定時任務停用過程中發生錯誤 (成功: $unload_count, 跳過: $skip_count, 錯誤: $error_count)"
-        info "執行 './manage status' 查看詳細狀態"
-        return 1
-    elif [[ $unload_count -gt 0 ]]; then
-        success "定時任務已停用 (停用了 $unload_count 個任務，跳過了 $skip_count 個未運行的任務)"
-    else
-        info "所有任務都已停用，無需操作"
-    fi
-}
 
 # 查看狀態
 show_status() {
@@ -704,25 +533,6 @@ show_status() {
     echo "提示: 使用 './manage logs latest' 查看最新日誌"
 }
 
-# 測試腳本
-test_script() {
-    info "測試自動打卡腳本..."
-    
-    check_requirements
-    
-    # 需要指定參數
-    if [[ $# -lt 1 ]]; then
-        error "測試需要指定動作類型"
-        echo "用法: $0 test <checkin|checkout>"
-        exit 1
-    fi
-    
-    local action_type="$1"
-    info "執行測試運行: $action_type"
-    "$SCRIPT_DIR/../bin/trigger.sh" "$action_type"
-    
-    success "測試完成"
-}
 
 # 顯示幫助
 show_help() {
@@ -733,16 +543,12 @@ show_help() {
     echo "命令:"
     echo "  install     安裝定時任務"
     echo "  uninstall   卸載定時任務"
-    echo "  enable      啟用定時任務"
-    echo "  disable     停用定時任務"
     echo "  status      查看狀態"
-    echo "  test        測試腳本"
     echo "  help        顯示此幫助"
     echo
     echo "範例:"
     echo "  $0 install    # 安裝並啟用定時任務"
     echo "  $0 status     # 查看目前狀態"
-    echo "  $0 disable    # 臨時停用任務"
 }
 
 # 主函數
@@ -754,18 +560,8 @@ main() {
         "uninstall")
             uninstall_scheduler
             ;;
-        "enable")
-            enable_scheduler
-            ;;
-        "disable")
-            disable_scheduler
-            ;;
         "status")
             show_status
-            ;;
-        "test")
-            shift || true
-            test_script "$@"
             ;;
         "help"|*)
             show_help
