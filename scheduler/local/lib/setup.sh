@@ -321,8 +321,8 @@ show_status() {
     echo "  簽退: 週一至週五 $(format_time $CHECKOUT_HOUR $CHECKOUT_MINUTE) (窗口: $checkout_start_time-$checkout_end_time)"
     
     # 計算下次執行時間
-    local current_hour=$(date +%H)
-    local current_minute=$(date +%M)
+    local current_hour=$(date +%H | sed 's/^0//')
+    local current_minute=$(date +%M | sed 's/^0//')
     local day_of_week=$(date +%u)
     
     if [[ $day_of_week -le 5 ]]; then  # 工作日
