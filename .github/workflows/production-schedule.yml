@@ -95,14 +95,12 @@ jobs:
           exit 0
 
       - name: 📦 Setup Node.js
-        if: steps.determine-action.outputs.should_run == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '18'
           cache: 'npm'
 
       - name: 🔧 Install dependencies
-        if: steps.determine-action.outputs.should_run == 'true'
         run: npm ci
 
       # Playwright 瀏覽器和中文字型已在容器中預裝，無需再安裝
