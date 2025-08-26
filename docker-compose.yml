@@ -32,7 +32,7 @@ services:
     networks:
       - tick-runner-network
 
-  # 可選：用於運行測試的服務
+  # 測試服務：執行 notify 和 smoke 測試
   test:
     build:
       context: .
@@ -47,8 +47,78 @@ services:
       - TZ=Asia/Taipei
       - LOCALE=zh-TW
       - LOG_LEVEL=${LOG_LEVEL:-DEBUG}
+      # 從 .env 文件讀取敏感配置（測試需要）
+      - BASE_URL=${BASE_URL:-https://erpline.aoacloud.com.tw/}
+      - COMPANY_CODE=${COMPANY_CODE:-CYBERBIZ}
+      - AOA_USERNAME=${AOA_USERNAME}
+      - AOA_PASSWORD=${AOA_PASSWORD}
+      - AOA_LAT=${AOA_LAT:-25.080869}
+      - AOA_LON=${AOA_LON:-121.569862}
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
+      - LINE_CHANNEL_ACCESS_TOKEN=${LINE_CHANNEL_ACCESS_TOKEN}
+      - LINE_USER_ID=${LINE_USER_ID}
     working_dir: /app
-    command: npx playwright test
+    command: sh -c "npx playwright test --project=notify --workers=1 --trace on && npx playwright test --project=chromium-smoke --workers=1 --trace on"
+    networks:
+      - tick-runner-network
+
+  # 測試服務：只執行 notify 測試
+  test-notify:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: daily-tick-runner:local
+    container_name: daily-tick-runner-test-notify
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=test
+      - TZ=Asia/Taipei
+      - LOCALE=zh-TW
+      - LOG_LEVEL=${LOG_LEVEL:-DEBUG}
+      # 從 .env 文件讀取敏感配置
+      - BASE_URL=${BASE_URL:-https://erpline.aoacloud.com.tw/}
+      - COMPANY_CODE=${COMPANY_CODE:-CYBERBIZ}
+      - AOA_USERNAME=${AOA_USERNAME}
+      - AOA_PASSWORD=${AOA_PASSWORD}
+      - AOA_LAT=${AOA_LAT:-25.080869}
+      - AOA_LON=${AOA_LON:-121.569862}
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
+      - LINE_CHANNEL_ACCESS_TOKEN=${LINE_CHANNEL_ACCESS_TOKEN}
+      - LINE_USER_ID=${LINE_USER_ID}
+    working_dir: /app
+    command: npx playwright test --project=notify --workers=1 --trace on
+    networks:
+      - tick-runner-network
+
+  # 測試服務：只執行 smoke 測試
+  test-smoke:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: daily-tick-runner:local
+    container_name: daily-tick-runner-test-smoke
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=test
+      - TZ=Asia/Taipei
+      - LOCALE=zh-TW
+      - LOG_LEVEL=${LOG_LEVEL:-DEBUG}
+      # 從 .env 文件讀取敏感配置
+      - BASE_URL=${BASE_URL:-https://erpline.aoacloud.com.tw/}
+      - COMPANY_CODE=${COMPANY_CODE:-CYBERBIZ}
+      - AOA_USERNAME=${AOA_USERNAME}
+      - AOA_PASSWORD=${AOA_PASSWORD}
+      - AOA_LAT=${AOA_LAT:-25.080869}
+      - AOA_LON=${AOA_LON:-121.569862}
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
+      - LINE_CHANNEL_ACCESS_TOKEN=${LINE_CHANNEL_ACCESS_TOKEN}
+      - LINE_USER_ID=${LINE_USER_ID}
+    working_dir: /app
+    command: npx playwright test --project=chromium-smoke --workers=1 --trace on
     networks:
       - tick-runner-network
 
