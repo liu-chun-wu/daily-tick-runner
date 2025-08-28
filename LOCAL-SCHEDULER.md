@@ -153,73 +153,53 @@ cd scheduler/local
 
 ```mermaid
 flowchart TB
-    ROOT[scheduler/local/]
-    
-    subgraph "Scripts"
-        BIN[bin/]
-        TRIGGER[trigger.sh<br/>主程式 - 檢查時間並觸發]
-        DISPATCH[dispatch.sh<br/>直接觸發 workflow（新增）]
-    end
-    
-    subgraph "Configuration"
-        CONFIG[config/]
-        SCHEDULE[schedule.conf<br/>時間設定]
-        LAUNCHD[launchd/<br/>macOS 排程配置]
-        CHECKIN[checkin.plist<br/>簽到任務]
-        CHECKOUT[checkout.plist<br/>簽退任務]
-    end
-    
-    subgraph "Library"
-        LIB[lib/]
-        SETUP[setup.sh<br/>安裝工具]
-        MANAGER[schedule-manager.sh<br/>時間管理]
-        VIEWER[log-viewer.sh<br/>日誌檢視]
-    end
-    
-    subgraph "Documentation"
-        DOCS[docs/]
-        README[README.md<br/>詳細文檔]
-    end
-    
-    MANAGE[manage<br/>統一管理入口（增強）]
-    
-    ROOT --> BIN
-    ROOT --> CONFIG  
-    ROOT --> LIB
-    ROOT --> DOCS
-    ROOT --> MANAGE
-    
-    BIN --> TRIGGER
-    BIN --> DISPATCH
-    
-    CONFIG --> SCHEDULE
-    CONFIG --> LAUNCHD
-    LAUNCHD --> CHECKIN
-    LAUNCHD --> CHECKOUT
-    
-    LIB --> SETUP
-    LIB --> MANAGER
-    LIB --> VIEWER
-    
-    DOCS --> README
-    
-    style ROOT fill:#e1f5fe,stroke:#0277bd,stroke-width:3px
-    style BIN fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
-    style CONFIG fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
-    style LIB fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
-    style DOCS fill:#fce4ec,stroke:#c2185b,stroke-width:2px
-    style MANAGE fill:#ffebee,stroke:#c62828,stroke-width:2px
-    
-    style TRIGGER fill:#f5f5f5,stroke:#616161,stroke-width:1px
-    style DISPATCH fill:#f5f5f5,stroke:#616161,stroke-width:1px
-    style SCHEDULE fill:#f5f5f5,stroke:#616161,stroke-width:1px
-    style LAUNCHD fill:#f5f5f5,stroke:#616161,stroke-width:1px
-    style CHECKIN fill:#f5f5f5,stroke:#616161,stroke-width:1px
-    style CHECKOUT fill:#f5f5f5,stroke:#616161,stroke-width:1px
-    style SETUP fill:#f5f5f5,stroke:#616161,stroke-width:1px
-    style MANAGER fill:#f5f5f5,stroke:#616161,stroke-width:1px
-    style VIEWER fill:#f5f5f5,stroke:#616161,stroke-width:1px
-    style README fill:#f5f5f5,stroke:#616161,stroke-width:1px
+  root[scheduler/local]
+
+  subgraph Scripts
+    bin[bin]
+    trigger[trigger.sh]
+    dispatch[dispatch.sh]
+  end
+
+  subgraph Configuration
+    config[config]
+    schedule[schedule.conf]
+    launchd[launchd]
+    checkin[checkin.plist]
+    checkout[checkout.plist]
+  end
+
+  subgraph Library
+    lib[lib]
+    setup[setup.sh]
+    manager[schedule-manager.sh]
+    viewer[log-viewer.sh]
+  end
+
+  subgraph Documentation
+    docs[docs]
+    docsreadme[README.md]
+  end
+
+  manage[manage]
+
+  root --- bin
+  root --- config
+  root --- lib
+  root --- docs
+  root --- manage
+
+  bin --- trigger
+  bin --- dispatch
+  config --- schedule
+  config --- launchd
+  launchd --- checkin
+  launchd --- checkout
+  lib --- setup
+  lib --- manager
+  lib --- viewer
+  docs --- docsreadme
+
 ```
 
 <!-- Original directory structure
@@ -276,8 +256,18 @@ launchctl load ~/Library/LaunchAgents/com.daily-tick-runner.checkin.plist
 ## 運作原理
 
 ### 執行流程
+```mermaid
+flowchart TD
+  launchd[launchd (macOS)] --> trigger[trigger.sh]
+  trigger --> timecheck[時間窗口判斷]
+  timecheck --> decide{簽到或簽退?}
+  decide --> gh[GitHub CLI (gh)]
+  gh --> workflow[GitHub Actions Workflow]
+  workflow --> pw[Playwright]
+  pw --> system[打卡系統]
 
 ```
+<!-- ```
 launchd (macOS)
     ↓ 定時觸發
 trigger.sh
@@ -289,7 +279,7 @@ GitHub Actions
 Playwright
     ↓ 瀏覽器自動化
 打卡系統
-```
+``` -->
 
 ### 時間判斷邏輯
 
@@ -297,11 +287,33 @@ Playwright
 2. **時間窗口判斷**：檢查當前時間是否在允許範圍內
 3. **動作類型決定**：判斷應執行簽到或簽退
 4. **觸發 workflow**：使用 gh CLI 觸發對應的 GitHub Actions
+```mermaid
+flowchart TD
+  A[launchd 觸發] --> B[讀取設定時間]
+  B --> C{當前時間在允許範圍?}
+  C -->|否| H[退出]
+  C -->|是| D{工作日?}
+  D -->|否| H
+  D -->|是| E{簽到或簽退}
+  E --> F[使用 gh 觸發對應 workflow]
+  F --> G[記錄日誌]
 
+```
 ### 重試機制
 
 內建三次重試機制，每次間隔 10 秒：
+```mermaid
+flowchart LR
+  start((開始)) --> try1[第 1 次執行]
+  try1 --> ok1{成功?}
+  ok1 -->|是| done[結束]
+  ok1 -->|否| wait1[等待 10 秒] --> try2[第 2 次執行] --> ok2{成功?}
+  ok2 -->|是| done
+  ok2 -->|否| wait2[等待 10 秒] --> try3[第 3 次執行] --> ok3{成功?}
+  ok3 -->|是| done
+  ok3 -->|否| fail[宣告失敗]
 
+```
 ```bash
 # trigger.sh 內建重試
 MAX_RETRIES=3

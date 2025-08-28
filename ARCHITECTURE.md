@@ -17,17 +17,17 @@
 
 ```mermaid
 flowchart TB
-  subgraph Trigger Layer
+  subgraph Trigger
     GA[GitHub Actions]
     LS[Local Scheduler]
     CLI[Manual CLI]
   end
 
-  subgraph Orchestration Layer
+  subgraph Orchestration
     FC[Flow Controller]
   end
 
-  subgraph Execution Layer
+  subgraph Execution
     PE[Policy Engine]
     AE[Automation Engine]
     NS[Notify Service]
@@ -47,6 +47,7 @@ flowchart TB
   PE --> RV
   AE --> PW
   NS --> NT
+
 
 ```
 
@@ -116,20 +117,13 @@ flowchart TB
 
 ```mermaid
 flowchart LR
-    FL[流程邏輯<br/>Flows] <--> PO[頁面操作<br/>Page Objects] 
-    PO <--> UT[基礎設施<br/>Utilities]
-    
-    FL --> FB[業務流程<br/>登入、打卡]
-    PO --> PB[UI 互動邏輯]
-    UT --> UB[通用工具函式]
-    
-    style FL fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
-    style PO fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px  
-    style UT fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
-    
-    style FB fill:#f5f5f5,stroke:#616161,stroke-width:1px
-    style PB fill:#f5f5f5,stroke:#616161,stroke-width:1px
-    style UB fill:#f5f5f5,stroke:#616161,stroke-width:1px
+  FL["流程邏輯 (Flows)"] <--> PO["頁面操作 (Page Objects)"]
+  PO <--> UT["基礎設施 (Utilities)"]
+
+  FL --> FB["登入、打卡等業務流程"]
+  PO --> PB["UI 互動邏輯"]
+  UT --> UB["通用工具函式"]
+
 ```
 
 <!-- 原始關注點分離圖
@@ -270,6 +264,7 @@ flowchart TD
   reason --> cleanup
   cleanup --> finish
 
+
 ```
 
 ### 關鍵決策點
@@ -371,13 +366,14 @@ logger.info('CheckIn started', {
 
 ```mermaid
 flowchart TD
-  app[應用層重試 ×3] --> |失敗| pw[Playwright 重試 ×2]
-  pw --> |失敗| gha[GitHub Actions 重試 ×3]
-  gha --> |失敗| human[人工介入]
+  app[應用層重試 ×3] -->|失敗| pw[Playwright 重試 ×2]
+  pw -->|失敗| gha[GitHub Actions 重試 ×3]
+  gha -->|失敗| human[人工介入]
 
-  app --> |成功| done[完成]
-  pw --> |成功| done
-  gha --> |成功| done
+  app -->|成功| done[完成]
+  pw  -->|成功| done
+  gha -->|成功| done
+
 
 ```
 
@@ -484,7 +480,7 @@ class CircuitBreaker {
 
 ```mermaid
 flowchart LR
-  subgraph Core Modules
+  subgraph Core_Modules
     AM[Authentication]
     NM[Navigation]
     ACT[Action]
@@ -492,7 +488,7 @@ flowchart LR
     NTM[Notification]
   end
 
-  subgraph Extension Points
+  subgraph Extension_Points
     CP[Custom Pages]
     CA[Custom Actions]
     CV[Custom Validators]
@@ -503,6 +499,7 @@ flowchart LR
   ACT -->|extends| CA
   VM -->|extends| CV
   NTM -->|extends| CN
+
 
 ```
 
