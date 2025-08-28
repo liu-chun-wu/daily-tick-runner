@@ -15,7 +15,40 @@
 
 ## 系統架構總覽
 
-<img src="svg/ARCHITECTURE.rendered-1.svg" alt="" width="600" />
+```mermaid
+flowchart TB
+  subgraph Trigger Layer
+    GA[GitHub Actions]
+    LS[Local Scheduler]
+    CLI[Manual CLI]
+  end
+
+  subgraph Orchestration Layer
+    FC[Flow Controller]
+  end
+
+  subgraph Execution Layer
+    PE[Policy Engine]
+    AE[Automation Engine]
+    NS[Notify Service]
+    RV[Rules Validation]
+    PW[Playwright Browser]
+    NT[Discord / LINE]
+  end
+
+  GA --> FC
+  LS --> FC
+  CLI --> FC
+
+  FC --> PE
+  FC --> AE
+  FC --> NS
+
+  PE --> RV
+  AE --> PW
+  NS --> NT
+
+```
 
 ## 技術選型
 
@@ -82,9 +115,9 @@
 ### 1. 關注點分離（Separation of Concerns）
 
 ```
-流程邏輯 ←→ 頁面操作 ←→ 基礎設施
-   ↓           ↓           ↓
-Flows      Page Objects  Utilities
+流程邏輯   ←→.  頁面操作   ←→   基礎設施
+   ↓             ↓              ↓
+ Flows      Page Objects     Utilities
 ```
 
 - **Flows**：業務流程（登入、打卡）
@@ -194,7 +227,30 @@ async function safeCheckIn() {
 
 ### 完整執行生命週期
 
-<img src="svg/ARCHITECTURE.rendered-2.svg" alt="" width="600" />
+```mermaid
+flowchart TD
+  trig[觸發事件] --> policy{政策檢查通過?}
+  policy -- 否 --> end[結束]
+  policy -- 是 --> load[載入設定]
+  load --> open[啟動瀏覽器]
+  open --> needlogin{需要登入?}
+  needlogin -- 是 --> login[執行登入]
+  needlogin -- 否 --> session[載入 Session]
+  login --> nav[前往打卡頁]
+  session --> nav
+  nav --> cancheck{可打卡?}
+  cancheck -- 否 --> reason[記錄原因並通知]
+  cancheck -- 是 --> do[執行打卡]
+  do --> verify[驗證結果]
+  verify --> ok{成功?}
+  ok -- 是 --> notifyOK[成功通知]
+  ok -- 否 --> notifyFail[失敗通知]
+  notifyOK --> cleanup[清理資源]
+  notifyFail --> cleanup
+  reason --> cleanup
+  cleanup --> end
+
+```
 
 ### 關鍵決策點
 
@@ -217,7 +273,13 @@ async function safeCheckIn() {
 
 ### 密鑰管理
 
-<img src="svg/ARCHITECTURE.rendered-3.svg" alt="" width="600" />
+```mermaid
+flowchart LR
+  EV[環境變數] --> Secrets[GitHub Secrets / .env]
+  Secrets --> Runtime[Runtime Config]
+  Runtime --> App[Application]
+
+```
 
 **原則：**
 - 永不提交密碼到版本控制
@@ -287,7 +349,16 @@ logger.info('CheckIn started', {
 
 ### 多層重試策略
 
-<img src="svg/ARCHITECTURE.rendered-4.svg" alt="" width="600" />入
+```mermaid
+flowchart TD
+  app[應用層重試 ×3] --> |失敗| pw[Playwright 重試 ×2]
+  pw --> |失敗| gha[GitHub Actions 重試 ×3]
+  gha --> |失敗| human[人工介入]
+
+  app --> |成功| done[完成]
+  pw --> |成功| done
+  gha --> |成功| done
+
 ```
 
 ### 錯誤分類與處理
@@ -391,7 +462,29 @@ class CircuitBreaker {
 
 ### 模組化架構
 
-<img src="svg/ARCHITECTURE.rendered-5.svg" alt="" width="600" />
+```mermaid
+flowchart LR
+  subgraph Core Modules
+    AM[Authentication]
+    NM[Navigation]
+    ACT[Action]
+    VM[Verification]
+    NTM[Notification]
+  end
+
+  subgraph Extension Points
+    CP[Custom Pages]
+    CA[Custom Actions]
+    CV[Custom Validators]
+    CN[Custom Notifiers]
+  end
+
+  AM -->|extends| CP
+  ACT -->|extends| CA
+  VM -->|extends| CV
+  NTM -->|extends| CN
+
+```
 
 ## 未來展望
 
