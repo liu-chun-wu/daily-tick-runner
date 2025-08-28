@@ -194,7 +194,7 @@ async function safeCheckIn() {
 
 ### 完整執行生命週期
 
-<img src="svg/ARCHITECTURE.rendered-2.svg" alt="" width="400" />
+<img src="svg/ARCHITECTURE.rendered-2.svg" alt="" width="600" />
 
 ### 關鍵決策點
 
@@ -217,7 +217,7 @@ async function safeCheckIn() {
 
 ### 密鑰管理
 
-<img src="svg/ARCHITECTURE.rendered-3.svg" alt="" width="200" />
+<img src="svg/ARCHITECTURE.rendered-3.svg" alt="" width="600" />
 
 **原則：**
 - 永不提交密碼到版本控制
@@ -287,7 +287,7 @@ logger.info('CheckIn started', {
 
 ### 多層重試策略
 
-<img src="svg/ARCHITECTURE.rendered-4.svg" alt="" width="300" />入
+<img src="svg/ARCHITECTURE.rendered-4.svg" alt="" width="600" />入
 ```
 
 ### 錯誤分類與處理
