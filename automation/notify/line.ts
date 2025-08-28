@@ -23,7 +23,7 @@ export async function notifyLine(opts: NotifyOpts) {
 
     try {
         // 1) 先送文字訊息（就算圖片失敗至少有訊息）
-        await fetch(url, {
+        const response = await fetch(url, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -37,6 +37,48 @@ export async function notifyLine(opts: NotifyOpts) {
                 }]
             })
         });
+
+        // 檢查是否月額度已用完
+        if (response.status === 429) {
+            const errorText = await response.text();
+            log.warn('LINE', `LINE API 月額度已用完: ${errorText}`);
+            
+            // Fallback 到 Discord
+            if (env.discordWebhookUrl) {
+                log.info('LINE', 'Fallback 到 Discord 通知...');
+                
+                // 準備 Discord 訊息
+                const discordMessage = [
+                    '⚠️ **LINE API 月額度已用完，訊息轉發至 Discord**',
+                    '',
+                    '📨 原始訊息:',
+                    opts.message,
+                    '',
+                    `⏰ 時間: ${new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })}`,
+                    '💡 提示: 請檢查 LINE Developer Console 或等待下個月額度重置'
+                ].join('\n');
+                
+                // 使用 Discord 發送
+                const { notifyDiscord } = await import('./discord');
+                await notifyDiscord({
+                    ...opts,
+                    message: discordMessage
+                });
+                
+                log.info('LINE', '已透過 Discord 發送通知');
+            } else {
+                log.warn('LINE', 'Discord Webhook 未設定，無法進行 fallback');
+            }
+            
+            // 不拋出錯誤，讓流程繼續
+            return;
+        }
+
+        // 檢查其他錯誤
+        if (!response.ok) {
+            const errorText = await response.text();
+            log.warn('LINE', `LINE API 錯誤 (${response.status}): ${errorText}`);
+        }
 
         // 2) 如果已有圖片 URL，直接使用
         if (opts.imageUrl) {

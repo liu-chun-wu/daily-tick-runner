@@ -20,8 +20,40 @@ test.describe('LINE Messaging API push @notify', () => {
             });
         });
 
-        await test.step('expect 200', async () => {
-            expect(res.status(), await res.text()).toBe(200);
+        await test.step('validate response', async () => {
+            const responseText = await res.text();
+            const status = res.status();
+            
+            // 處理月額度用完的情況
+            if (status === 429) {
+                console.warn('⚠️ LINE API monthly limit reached:', responseText);
+                
+                // 發送通知到 Discord
+                if (env.discordWebhookUrl) {
+                    const alertMessage = [
+                        '⚠️ **LINE API 月額度已用完**',
+                        `時間: ${new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })}`,
+                        '錯誤訊息: ' + responseText,
+                        '請檢查 LINE Developer Console 或等待下個月額度重置'
+                    ].join('\n');
+                    
+                    try {
+                        await request.post(env.discordWebhookUrl, {
+                            data: { content: alertMessage }
+                        });
+                        console.log('✅ Discord notification sent for LINE quota exceeded');
+                    } catch (e) {
+                        console.error('Failed to send Discord notification:', e);
+                    }
+                }
+                
+                // 跳過測試而不是失敗
+                test.skip(true, 'LINE API monthly quota exceeded - skipping test');
+                return;
+            }
+            
+            // 正常情況期待 200
+            expect(status, responseText).toBe(200);
         });
     });
 });
