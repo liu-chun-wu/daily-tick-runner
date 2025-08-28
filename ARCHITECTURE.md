@@ -229,26 +229,26 @@ async function safeCheckIn() {
 
 ```mermaid
 flowchart TD
-  trig[觸發事件] --> policy{政策檢查通過?}
-  policy -- 否 --> end[結束]
-  policy -- 是 --> load[載入設定]
-  load --> open[啟動瀏覽器]
-  open --> needlogin{需要登入?}
-  needlogin -- 是 --> login[執行登入]
-  needlogin -- 否 --> session[載入 Session]
-  login --> nav[前往打卡頁]
-  session --> nav
-  nav --> cancheck{可打卡?}
-  cancheck -- 否 --> reason[記錄原因並通知]
-  cancheck -- 是 --> do[執行打卡]
-  do --> verify[驗證結果]
-  verify --> ok{成功?}
-  ok -- 是 --> notifyOK[成功通知]
-  ok -- 否 --> notifyFail[失敗通知]
-  notifyOK --> cleanup[清理資源]
+  trig["觸發事件"] --> policy{"政策檢查通過?"}
+  policy -->|否| finish["結束"]
+  policy -->|是| load["載入設定"]
+  load --> openBrowser["啟動瀏覽器"]
+  openBrowser --> needLogin{"需要登入?"}
+  needLogin -->|是| login["執行登入"]
+  needLogin -->|否| sessionLoad["載入 Session"]
+  login --> nav["前往打卡頁"]
+  sessionLoad --> nav
+  nav --> canCheck{"可打卡?"}
+  canCheck -->|否| reason["記錄原因並通知"]
+  canCheck -->|是| doCheck["執行打卡"]
+  doCheck --> verify["驗證結果"]
+  verify --> isSuccess{"成功?"}
+  isSuccess -->|是| notifyOK["成功通知"]
+  isSuccess -->|否| notifyFail["失敗通知"]
+  notifyOK --> cleanup["清理資源"]
   notifyFail --> cleanup
   reason --> cleanup
-  cleanup --> end
+  cleanup --> finish
 
 ```
 
