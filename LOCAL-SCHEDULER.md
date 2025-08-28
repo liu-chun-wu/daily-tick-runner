@@ -151,6 +151,78 @@ cd scheduler/local
 
 ### 目錄結構
 
+```mermaid
+flowchart TB
+    ROOT[scheduler/local/]
+    
+    subgraph "Scripts"
+        BIN[bin/]
+        TRIGGER[trigger.sh<br/>主程式 - 檢查時間並觸發]
+        DISPATCH[dispatch.sh<br/>直接觸發 workflow（新增）]
+    end
+    
+    subgraph "Configuration"
+        CONFIG[config/]
+        SCHEDULE[schedule.conf<br/>時間設定]
+        LAUNCHD[launchd/<br/>macOS 排程配置]
+        CHECKIN[checkin.plist<br/>簽到任務]
+        CHECKOUT[checkout.plist<br/>簽退任務]
+    end
+    
+    subgraph "Library"
+        LIB[lib/]
+        SETUP[setup.sh<br/>安裝工具]
+        MANAGER[schedule-manager.sh<br/>時間管理]
+        VIEWER[log-viewer.sh<br/>日誌檢視]
+    end
+    
+    subgraph "Documentation"
+        DOCS[docs/]
+        README[README.md<br/>詳細文檔]
+    end
+    
+    MANAGE[manage<br/>統一管理入口（增強）]
+    
+    ROOT --> BIN
+    ROOT --> CONFIG  
+    ROOT --> LIB
+    ROOT --> DOCS
+    ROOT --> MANAGE
+    
+    BIN --> TRIGGER
+    BIN --> DISPATCH
+    
+    CONFIG --> SCHEDULE
+    CONFIG --> LAUNCHD
+    LAUNCHD --> CHECKIN
+    LAUNCHD --> CHECKOUT
+    
+    LIB --> SETUP
+    LIB --> MANAGER
+    LIB --> VIEWER
+    
+    DOCS --> README
+    
+    style ROOT fill:#e1f5fe,stroke:#0277bd,stroke-width:3px
+    style BIN fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    style CONFIG fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+    style LIB fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
+    style DOCS fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+    style MANAGE fill:#ffebee,stroke:#c62828,stroke-width:2px
+    
+    style TRIGGER fill:#f5f5f5,stroke:#616161,stroke-width:1px
+    style DISPATCH fill:#f5f5f5,stroke:#616161,stroke-width:1px
+    style SCHEDULE fill:#f5f5f5,stroke:#616161,stroke-width:1px
+    style LAUNCHD fill:#f5f5f5,stroke:#616161,stroke-width:1px
+    style CHECKIN fill:#f5f5f5,stroke:#616161,stroke-width:1px
+    style CHECKOUT fill:#f5f5f5,stroke:#616161,stroke-width:1px
+    style SETUP fill:#f5f5f5,stroke:#616161,stroke-width:1px
+    style MANAGER fill:#f5f5f5,stroke:#616161,stroke-width:1px
+    style VIEWER fill:#f5f5f5,stroke:#616161,stroke-width:1px
+    style README fill:#f5f5f5,stroke:#616161,stroke-width:1px
+```
+
+<!-- Original directory structure
 ```
 scheduler/local/
 ├── bin/
@@ -169,6 +241,7 @@ scheduler/local/
 │   └── README.md          # 詳細文檔
 └── manage                 # 統一管理入口（增強）
 ```
+-->
 
 ### 時間配置檔
 

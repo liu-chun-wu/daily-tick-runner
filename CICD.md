@@ -19,6 +19,46 @@
 
 ## 結構變更（一次性）
 
+```mermaid
+flowchart TB
+    ROOT[repo-root/]
+    
+    subgraph "Container Setup"
+        DOCKER[docker/]
+        DOCKERFILE[Dockerfile<br/>本專案的 CI/CD 基底映像]
+    end
+    
+    subgraph "GitHub Actions"
+        GITHUB[.github/]
+        WORKFLOWS[workflows/]
+        CI[ci.yml<br/>PR / Push 的 CI]
+        BUILD[build-image.yml<br/>建置並推送自有映像到 GHCR]
+    end
+    
+    EXISTING[你現有的排程 CD workflows<br/>維持檔名，稍後只改一行 container]
+    
+    ROOT --> DOCKER
+    ROOT --> GITHUB
+    ROOT --> EXISTING
+    
+    DOCKER --> DOCKERFILE
+    
+    GITHUB --> WORKFLOWS
+    WORKFLOWS --> CI
+    WORKFLOWS --> BUILD
+    
+    style ROOT fill:#e1f5fe,stroke:#0277bd,stroke-width:3px
+    style DOCKER fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    style GITHUB fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+    style EXISTING fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
+    
+    style DOCKERFILE fill:#f5f5f5,stroke:#616161,stroke-width:1px
+    style WORKFLOWS fill:#f5f5f5,stroke:#616161,stroke-width:1px
+    style CI fill:#f5f5f5,stroke:#616161,stroke-width:1px
+    style BUILD fill:#f5f5f5,stroke:#616161,stroke-width:1px
+```
+
+<!-- Original repository structure
 ```
 repo-root/
 ├─ docker/
@@ -29,6 +69,7 @@ repo-root/
 │     └─ build-image.yml# 建置並推送自有映像到 GHCR
 └─ （你現有的排程 CD workflows 維持檔名，稍後只改一行 container）
 ```
+-->
 
 ---
 

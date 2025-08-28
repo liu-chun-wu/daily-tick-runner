@@ -114,11 +114,31 @@ flowchart TB
 
 ### 1. 關注點分離（Separation of Concerns）
 
+```mermaid
+flowchart LR
+    FL[流程邏輯<br/>Flows] <--> PO[頁面操作<br/>Page Objects] 
+    PO <--> UT[基礎設施<br/>Utilities]
+    
+    FL --> FB[業務流程<br/>登入、打卡]
+    PO --> PB[UI 互動邏輯]
+    UT --> UB[通用工具函式]
+    
+    style FL fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    style PO fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px  
+    style UT fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+    
+    style FB fill:#f5f5f5,stroke:#616161,stroke-width:1px
+    style PB fill:#f5f5f5,stroke:#616161,stroke-width:1px
+    style UB fill:#f5f5f5,stroke:#616161,stroke-width:1px
+```
+
+<!-- 原始關注點分離圖
 ```
 流程邏輯   ←→.  頁面操作   ←→   基礎設施
    ↓             ↓              ↓
  Flows      Page Objects     Utilities
 ```
+-->
 
 - **Flows**：業務流程（登入、打卡）
 - **Pages**：UI 互動邏輯

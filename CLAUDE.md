@@ -78,6 +78,84 @@ npx playwright test tests/notify/discord.spec.ts --project=notify
 ## 🏛️ Architecture Overview
 
 ### Core Structure
+
+```mermaid
+flowchart TB
+    subgraph "Automation Core"
+        AUTO[automation/]
+        PAGES[pages/]
+        NOTIFY[notify/]
+        UTILS[utils/]
+        
+        LP[LoginPage.ts<br/>Handles login functionality]
+        AP[AttendancePage.ts<br/>Handles check-in/check-out]
+        
+        DIS[discord.ts<br/>Discord webhook integration]
+        LINE[line.ts<br/>LINE Messaging API]
+        TYPES[types.ts<br/>Notification type definitions]
+        
+        LOC[location.ts<br/>GPS location handling]
+        LOG[logger.ts<br/>Logging system]
+        SS[stableScreenshot.ts<br/>Screenshot utilities]
+    end
+    
+    subgraph "Testing"
+        TESTS[tests/]
+        CHECK[check/<br/>Attendance testing]
+        NOTTEST[notify/<br/>Notification testing]
+        SETUP[setup/<br/>Environment setup tests]
+        
+        SMOKE[*.smoke.spec.ts<br/>UI validation tests @smoke]
+        CLICK[*.click.spec.ts<br/>Actual action tests @click]
+    end
+    
+    subgraph "Configuration"
+        CONFIG[config/]
+        ENV[env.ts<br/>Environment variable management]
+    end
+    
+    AUTO --> PAGES
+    AUTO --> NOTIFY
+    AUTO --> UTILS
+    
+    PAGES --> LP
+    PAGES --> AP
+    
+    NOTIFY --> DIS
+    NOTIFY --> LINE
+    NOTIFY --> TYPES
+    
+    UTILS --> LOC
+    UTILS --> LOG
+    UTILS --> SS
+    
+    TESTS --> CHECK
+    TESTS --> NOTTEST
+    TESTS --> SETUP
+    
+    CHECK --> SMOKE
+    CHECK --> CLICK
+    
+    CONFIG --> ENV
+    
+    style AUTO fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    style TESTS fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
+    style CONFIG fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+    
+    style LP fill:#f5f5f5,stroke:#616161,stroke-width:1px
+    style AP fill:#f5f5f5,stroke:#616161,stroke-width:1px
+    style DIS fill:#f5f5f5,stroke:#616161,stroke-width:1px
+    style LINE fill:#f5f5f5,stroke:#616161,stroke-width:1px
+    style TYPES fill:#f5f5f5,stroke:#616161,stroke-width:1px
+    style LOC fill:#f5f5f5,stroke:#616161,stroke-width:1px
+    style LOG fill:#f5f5f5,stroke:#616161,stroke-width:1px
+    style SS fill:#f5f5f5,stroke:#616161,stroke-width:1px
+    style SMOKE fill:#f5f5f5,stroke:#616161,stroke-width:1px
+    style CLICK fill:#f5f5f5,stroke:#616161,stroke-width:1px
+    style ENV fill:#f5f5f5,stroke:#616161,stroke-width:1px
+```
+
+<!-- Original directory structure
 ```
 automation/
 ├── pages/              # Page Object Model implementations
@@ -102,6 +180,7 @@ tests/
 config/
 └── env.ts             # Environment variable management
 ```
+-->
 
 ### Test Projects Configuration
 
