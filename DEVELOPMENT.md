@@ -56,85 +56,74 @@ npx tsc --watch --noEmit
 ## 專案結構
 
 ```mermaid
-graph TB
-    ROOT[daily-tick-runner]
-    
-    subgraph "Automation Core"
-        AUTO[automation/]
-        PAGES[pages/]
-        NOTIFY[notify/]
-        UTILS[utils/]
-        
-        LP[LoginPage.ts]
-        AP[AttendancePage.ts]
-        
-        DIS[discord.ts]
-        LINE[line.ts]
-        TYPES[types.ts]
-        
-        LOC[location.ts]
-        LOG[logger.ts]
-        SS[stableScreenshot.ts]
-    end
-    
-    subgraph "Configuration"
-        CONFIG[config/]
-        ENV[env.ts]
-    end
-    
-    subgraph "Testing"
-        TESTS[tests/]
-        CHECK[check/]
-        NOTTEST[notify/]
-        SETUP[setup/]
-    end
-    
-    PW[playwright.config.ts]
-    
-    ROOT --> AUTO
-    ROOT --> CONFIG
-    ROOT --> TESTS
-    ROOT --> PW
-    
-    AUTO --> PAGES
-    AUTO --> NOTIFY
-    AUTO --> UTILS
-    
-    PAGES --> LP
-    PAGES --> AP
-    
-    NOTIFY --> DIS
-    NOTIFY --> LINE
-    NOTIFY --> TYPES
-    
-    UTILS --> LOC
-    UTILS --> LOG
-    UTILS --> SS
-    
-    CONFIG --> ENV
-    
-    TESTS --> CHECK
-    TESTS --> NOTTEST
-    TESTS --> SETUP
-    
-    style ROOT fill:#e1f5fe,stroke:#0277bd,stroke-width:3px
-    style AUTO fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
-    style CONFIG fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
-    style TESTS fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
-    style PW fill:#fce4ec,stroke:#c2185b,stroke-width:2px
-    
-    style LP fill:#f5f5f5,stroke:#616161,stroke-width:1px
-    style AP fill:#f5f5f5,stroke:#616161,stroke-width:1px
-    style DIS fill:#f5f5f5,stroke:#616161,stroke-width:1px
-    style LINE fill:#f5f5f5,stroke:#616161,stroke-width:1px
-    style TYPES fill:#f5f5f5,stroke:#616161,stroke-width:1px
-    style LOC fill:#f5f5f5,stroke:#616161,stroke-width:1px
-    style LOG fill:#f5f5f5,stroke:#616161,stroke-width:1px
-    style SS fill:#f5f5f5,stroke:#616161,stroke-width:1px
-    style ENV fill:#f5f5f5,stroke:#616161,stroke-width:1px
-    style CHECK fill:#f5f5f5,stroke:#616161,stroke-width:1px
-    style NOTTEST fill:#f5f5f5,stroke:#616161,stroke-width:1px
-    style SETUP fill:#f5f5f5,stroke:#616161,stroke-width:1px
+flowchart TB
+%% Stable syntax for GitHub & HackMD
+%% - Use simple alphanumeric IDs
+%% - Give subgraphs explicit IDs with human titles in [brackets]
+%% - Avoid advanced theming/styles for cross-platform stability
+
+  ROOT["daily-tick-runner"]
+
+  subgraph Automation_Core ["Automation Core"]
+    AUTO["automation/"]
+    PAGES["pages/"]
+    NOTIFY_DIR["notify/"]
+    UTILS["utils/"]
+
+    LP["LoginPage.ts"]
+    AP["AttendancePage.ts"]
+
+    DIS["discord.ts"]
+    LINE_FILE["line.ts"]
+    TYPES["types.ts"]
+
+    LOC["location.ts"]
+    LOG["logger.ts"]
+    SS["stableScreenshot.ts"]
+  end
+
+  subgraph Configuration ["Configuration"]
+    CONFIG["config/"]
+    ENV["env.ts"]
+  end
+
+  subgraph Testing ["Testing"]
+    TESTS["tests/"]
+    CHECK["check/"]
+    NOTTEST["notify/"]
+    SETUP["setup/"]
+  end
+
+  PW["playwright.config.ts"]
+
+  %% Top-level links
+  ROOT --> AUTO
+  ROOT --> CONFIG
+  ROOT --> TESTS
+  ROOT --> PW
+
+  %% Automation breakdown
+  AUTO --> PAGES
+  AUTO --> NOTIFY_DIR
+  AUTO --> UTILS
+
+  PAGES --> LP
+  PAGES --> AP
+
+  NOTIFY_DIR --> DIS
+  NOTIFY_DIR --> LINE_FILE
+  NOTIFY_DIR --> TYPES
+
+  UTILS --> LOC
+  UTILS --> LOG
+  UTILS --> SS
+
+  CONFIG --> ENV
+
+  TESTS --> CHECK
+  TESTS --> NOTTEST
+  TESTS --> SETUP
+
 ```
 
 <!-- 原始文字目錄結構
