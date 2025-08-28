@@ -258,13 +258,15 @@ launchctl load ~/Library/LaunchAgents/com.daily-tick-runner.checkin.plist
 ### 執行流程
 ```mermaid
 flowchart TD
-  launchd[launchd (macOS)] --> trigger[trigger.sh]
-  trigger --> timecheck[時間窗口判斷]
-  timecheck --> decide{簽到或簽退?}
-  decide --> gh[GitHub CLI (gh)]
-  gh --> workflow[GitHub Actions Workflow]
-  workflow --> pw[Playwright]
-  pw --> system[打卡系統]
+  LCHD["launchd (macOS)"] --> TRIGGER["trigger.sh"]
+  TRIGGER --> TIMECHK["時間窗口判斷"]
+  TIMECHK --> DECIDE{"簽到或簽退？"}
+  DECIDE -->|簽到| GH["GitHub CLI (gh)"]
+  DECIDE -->|簽退| GH
+  GH --> WF["GitHub Actions Workflow"]
+  WF --> PW["Playwright"]
+  PW --> TARGET["打卡系統"]
+
 
 ```
 <!-- ```
