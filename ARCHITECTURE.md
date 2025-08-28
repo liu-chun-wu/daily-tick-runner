@@ -15,6 +15,57 @@
 
 ## 系統架構總覽
 
+```mermaid
+graph TB
+    subgraph "Trigger Layer"
+        GA[GitHub Actions]
+        LS[Local Scheduler]
+        MC[Manual CLI]
+    end
+    
+    subgraph "Orchestration Layer"
+        FC[Flow Controller]
+    end
+    
+    subgraph "Execution Layer"
+        subgraph "Policy"
+            PE[Policy Engine]
+            RV[Rules Validation]
+        end
+        
+        subgraph "Automation"
+            AE[Automation Engine]
+            PB[Playwright Browser]
+        end
+        
+        subgraph "Notify"
+            NS[Notify Service]
+            DN[Discord/LINE]
+        end
+    end
+    
+    GA --> FC
+    LS --> FC
+    MC --> FC
+    
+    FC --> PE
+    FC --> AE
+    FC --> NS
+    
+    PE --> RV
+    AE --> PB
+    NS --> DN
+    
+    classDef triggerClass fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    classDef orchClass fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef execClass fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
+    
+    class GA,LS,MC triggerClass
+    class FC orchClass
+    class PE,RV,AE,PB,NS,DN execClass
+```
+
+<!-- 原始 ASCII 架構圖（保留作為備用）
 ```
 ┌────────────────────────────────────────────────────────┐
 │                   Trigger Layer                        │
@@ -44,6 +95,7 @@
     │Validation│     │   Browser   │    │  LINE   │
     └─────────┘      └─────────────┘    └─────────┘
 ```
+-->
 
 ## 技術選型
 
@@ -238,9 +290,32 @@ graph TD
     I -->|否| K[記錄原因]
     J --> L[驗證結果]
     K --> M[發送通知]
-    L --> M
-    M --> N[清理資源]
+    L --> O{結果成功?}
+    O -->|是| P[成功通知]
+    O -->|否| Q[失敗通知]
+    P --> N[清理資源]
+    Q --> N
+    M --> N
     N --> X
+    
+    style A fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    style B fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+    style C fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    style D fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
+    style E fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+    style F fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    style G fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    style H fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
+    style I fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+    style J fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    style K fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+    style L fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    style M fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
+    style N fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    style O fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+    style P fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    style Q fill:#ffebee,stroke:#c62828,stroke-width:2px
+    style X fill:#f5f5f5,stroke:#616161,stroke-width:2px
 ```
 
 ### 關鍵決策點
@@ -264,6 +339,19 @@ graph TD
 
 ### 密鑰管理
 
+```mermaid
+graph TD
+    EV[環境變數] --> GS[GitHub Secrets / .env]
+    GS --> RC[Runtime Config]
+    RC --> APP[Application]
+    
+    style EV fill:#ffebee,stroke:#c62828,stroke-width:2px
+    style GS fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    style RC fill:#fff8e1,stroke:#f57c00,stroke-width:2px
+    style APP fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+```
+
+<!-- 原始 ASCII 圖
 ```
 環境變數
     ↓
@@ -273,6 +361,7 @@ Runtime Config
     ↓
 Application
 ```
+-->
 
 **原則：**
 - 永不提交密碼到版本控制
@@ -342,6 +431,24 @@ logger.info('CheckIn started', {
 
 ### 多層重試策略
 
+```mermaid
+graph TD
+    A[應用層重試<br/>3次] -->|失敗| B[Playwright 重試<br/>2次]
+    B -->|失敗| C[GitHub Actions 重試<br/>3次]
+    C -->|失敗| D[人工介入]
+    
+    A -->|成功| E[完成]
+    B -->|成功| E
+    C -->|成功| E
+    
+    style A fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    style B fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
+    style C fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+    style D fill:#ffebee,stroke:#c62828,stroke-width:2px
+    style E fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+```
+
+<!-- 原始 ASCII 圖
 ```
 應用層重試（3次）
     ↓ 失敗
@@ -351,6 +458,7 @@ GitHub Actions 重試（3次）
     ↓ 失敗
 人工介入
 ```
+-->
 
 ### 錯誤分類與處理
 
@@ -453,6 +561,41 @@ class CircuitBreaker {
 
 ### 模組化架構
 
+```mermaid
+graph LR
+    subgraph "Core Modules"
+        AM[Authentication Module]
+        NM[Navigation Module]
+        ACM[Action Module]
+        VM[Verification Module]
+        NTM[Notification Module]
+    end
+    
+    subgraph "Extension Points"
+        CP[Custom Pages]
+        CA[Custom Actions]
+        CV[Custom Validators]
+        CN[Custom Notifiers]
+    end
+    
+    AM -.->|extends| CP
+    ACM -.->|extends| CA
+    VM -.->|extends| CV
+    NTM -.->|extends| CN
+    
+    style AM fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    style NM fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    style ACM fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+    style VM fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
+    style NTM fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+    
+    style CP fill:#f5f5f5,stroke:#616161,stroke-width:1px,stroke-dasharray: 5 5
+    style CA fill:#f5f5f5,stroke:#616161,stroke-width:1px,stroke-dasharray: 5 5
+    style CV fill:#f5f5f5,stroke:#616161,stroke-width:1px,stroke-dasharray: 5 5
+    style CN fill:#f5f5f5,stroke:#616161,stroke-width:1px,stroke-dasharray: 5 5
+```
+
+<!-- 原始文字架構
 ```
 Core Modules:
 ├── Authentication Module
@@ -467,6 +610,7 @@ Extension Points:
 ├── Custom Validators
 └── Custom Notifiers
 ```
+-->
 
 ## 未來展望
 
