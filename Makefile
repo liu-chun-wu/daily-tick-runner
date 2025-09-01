@@ -5,6 +5,11 @@
 .PHONY: scheduler-install scheduler-uninstall scheduler-status scheduler-diagnose scheduler-wake scheduler-dispatch scheduler-logs scheduler-update-time
 .PHONY: setup
 
+# 捕捉所有未定義的目標，允許將參數傳遞給 make 命令
+# 這讓我們可以使用像 'make scheduler-dispatch checkin test DEBUG' 這樣的語法
+%:
+	@:
+
 # 顏色定義
 GREEN=\033[0;32m
 YELLOW=\033[1;33m
@@ -48,17 +53,24 @@ help:
 	@echo "  make scheduler-uninstall   卸載定時打卡排程"
 	@echo "  make scheduler-status      查看排程狀態"
 	@echo "  make scheduler-diagnose    診斷系統配置和延遲問題"
-	@echo "  make scheduler-wake [ARG]  管理系統喚醒排程"
-	@echo "  make scheduler-dispatch [ARGS]  直接觸發 workflow"
-	@echo "  make scheduler-logs [ARGS] 查看日誌 (latest/today/monitor/etc.)"
+	@echo "  make scheduler-wake [ACTION]     管理系統喚醒排程 (show/setup/remove)"
+	@echo "  make scheduler-dispatch [ARGS]   直接觸發 workflow"
+	@echo "  make scheduler-logs [SUBCMD]     查看日誌 (latest/today/monitor/etc.)"
 	@echo "  make scheduler-update-time 更新執行時間設定"
 	@echo ""
 	@echo "$(YELLOW)💡 範例用法:$(NC)"
 	@echo "  make setup                           # 完整環境設置"
 	@echo "  make test-smoke                      # 安全的 UI 測試"
 	@echo "  make scheduler-install               # 安裝排程器"
-	@echo "  make scheduler-logs latest           # 查看最新日誌"
-	@echo "  make scheduler-dispatch checkin      # 手動觸發簽到"
+	@echo "  make scheduler-status                # 查看排程狀態"
+	@echo ""
+	@echo "$(CYAN)📌 參數化命令範例:$(NC)"
+	@echo "  make scheduler-dispatch checkin              # 觸發測試簽到 (DEBUG)"
+	@echo "  make scheduler-dispatch checkout production  # 觸發正式簽退"
+	@echo "  make scheduler-dispatch both test INFO       # 觸發簽到+簽退 (INFO)"
+	@echo "  make scheduler-logs latest 100               # 查看最新 100 行"
+	@echo "  make scheduler-logs search ERROR             # 搜尋錯誤訊息"
+	@echo "  make scheduler-wake setup                    # 設置系統喚醒"
 	@echo ""
 
 # ============================================================================
@@ -135,32 +147,32 @@ scheduler-status:
 	@$(SCHEDULER_MANAGE) status
 
 scheduler-diagnose:
-	@$(SCHEDULER_MANAGE) diagnose $(ARGS)
+	@$(SCHEDULER_MANAGE) diagnose $(filter-out $@,$(MAKECMDGOALS)) $(ARGS)
 
 scheduler-wake:
-	@$(SCHEDULER_MANAGE) wake $(ARGS)
+	@$(SCHEDULER_MANAGE) wake $(filter-out $@,$(MAKECMDGOALS)) $(ARGS)
 
 scheduler-dispatch:
-	@$(SCHEDULER_MANAGE) dispatch $(ARGS)
+	@$(SCHEDULER_MANAGE) dispatch $(filter-out $@,$(MAKECMDGOALS)) $(ARGS)
 
 scheduler-logs:
-	@$(SCHEDULER_MANAGE) logs $(ARGS)
+	@$(SCHEDULER_MANAGE) logs $(filter-out $@,$(MAKECMDGOALS)) $(ARGS)
 
 scheduler-update-time:
-	@$(SCHEDULER_MANAGE) update-time $(ARGS)
+	@$(SCHEDULER_MANAGE) update-time $(filter-out $@,$(MAKECMDGOALS)) $(ARGS)
 
 # ============================================================================
-# 特殊目標 - 支援參數傳遞
+# 特殊目標 - 支援參數傳遞 (保留以支援舊語法)
 # ============================================================================
 
-# 支援 make scheduler-logs latest 50 的語法
+# 支援 make scheduler-logs-latest 50 的語法 (向後相容)
 scheduler-logs-%:
-	@$(SCHEDULER_MANAGE) logs $* $(ARGS)
+	@$(SCHEDULER_MANAGE) logs $* $(filter-out $@,$(MAKECMDGOALS)) $(ARGS)
 
-# 支援 make scheduler-wake setup 的語法
+# 支援 make scheduler-wake-setup 的語法 (向後相容)
 scheduler-wake-%:
-	@$(SCHEDULER_MANAGE) wake $*
+	@$(SCHEDULER_MANAGE) wake $* $(filter-out $@,$(MAKECMDGOALS))
 
-# 支援 make scheduler-dispatch checkin 的語法
+# 支援 make scheduler-dispatch-checkin 的語法 (向後相容)
 scheduler-dispatch-%:
-	@$(SCHEDULER_MANAGE) dispatch $* $(ARGS)
+	@$(SCHEDULER_MANAGE) dispatch $* $(filter-out $@,$(MAKECMDGOALS)) $(ARGS)

@@ -13,8 +13,8 @@ CHECKIN_MINUTE=30
 # ============================
 # 簽退時間設定
 # ============================
-CHECKOUT_HOUR=18
-CHECKOUT_MINUTE=0
+CHECKOUT_HOUR=17
+CHECKOUT_MINUTE=50
 
 # ============================
 # 工作日設定
