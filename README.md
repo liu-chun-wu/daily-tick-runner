@@ -249,3 +249,5 @@ MIT License
 [問題回報](https://github.com/liu-chun-wu/daily-tick-runner/issues) | [功能建議](https://github.com/liu-chun-wu/daily-tick-runner/issues) | [參與貢獻](https://github.com/liu-chun-wu/daily-tick-runner/pulls)
 
 </div>
+
+1
