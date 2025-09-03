@@ -528,7 +528,7 @@ show_status() {
     local current_minute=$(date +%M | sed 's/^0//')
     local day_of_week=$(date +%u)
     
-    if is_workday; then  # 工作日
+    if is_workday; then  # 今天是工作日
         if [[ $current_hour -lt $CHECKIN_HOUR ]] || 
            [[ $current_hour -eq $CHECKIN_HOUR && $current_minute -lt $CHECKIN_MINUTE ]]; then
             echo "  下次執行: 今日 $(format_time $CHECKIN_HOUR $CHECKIN_MINUTE) (簽到)"
@@ -536,15 +536,25 @@ show_status() {
              [[ $current_hour -eq $CHECKOUT_HOUR && $current_minute -lt $CHECKOUT_MINUTE ]]; then
             echo "  下次執行: 今日 $(format_time $CHECKOUT_HOUR $CHECKOUT_MINUTE) (簽退)"
         else
-            # 明天
-            if [[ $day_of_week -eq 5 ]]; then
-                echo "  下次執行: 下週一 $(format_time $CHECKIN_HOUR $CHECKIN_MINUTE) (簽到)"
+            # 今日的打卡已結束，找下一個工作日
+            local next_workday=$(get_next_workday $day_of_week)
+            if [[ $next_workday -gt $day_of_week ]]; then
+                # 本週內還有工作日
+                echo "  下次執行: $(day_to_name $next_workday) $(format_time $CHECKIN_HOUR $CHECKIN_MINUTE) (簽到)"
             else
-                echo "  下次執行: 明日 $(format_time $CHECKIN_HOUR $CHECKIN_MINUTE) (簽到)"
+                # 下週的工作日
+                echo "  下次執行: 下$(day_to_name $next_workday) $(format_time $CHECKIN_HOUR $CHECKIN_MINUTE) (簽到)"
             fi
         fi
-    else  # 週末
-        echo "  下次執行: 下週一 $(format_time $CHECKIN_HOUR $CHECKIN_MINUTE) (簽到)"
+    else  # 今天不是工作日
+        local next_workday=$(get_next_workday $day_of_week)
+        if [[ $next_workday -gt $day_of_week ]]; then
+            # 本週內還有工作日
+            echo "  下次執行: $(day_to_name $next_workday) $(format_time $CHECKIN_HOUR $CHECKIN_MINUTE) (簽到)"
+        else
+            # 下週的工作日
+            echo "  下次執行: 下$(day_to_name $next_workday) $(format_time $CHECKIN_HOUR $CHECKIN_MINUTE) (簽到)"
+        fi
     fi
     
     echo
