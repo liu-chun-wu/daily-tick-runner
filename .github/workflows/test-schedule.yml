@@ -1,4 +1,4 @@
-name: 測試排程 - 自動打卡
+name: 測試排程 - 自動檢查打卡
 
 on:
   # schedule:

@@ -47,7 +47,7 @@ test('簽退(真的點)', { tag: '@click' }, async ({ page }, testInfo) => {
     await test.step('發送成功通知', async () => {
         const nowTW = new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' });
         const location = `📍 ${getEnvLocationName(env)}`;
-        const message = `✅ 簽退成功\n🕒 ${nowTW}\n${location}`;
+        const message = `✅ 檢查完畢，已成功簽退\n🕒 ${nowTW}\n${location}`;
 
         await Promise.all([
             notifyDiscord({ message, screenshotBuffer, filename, screenshotPath }),

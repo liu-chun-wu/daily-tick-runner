@@ -47,7 +47,7 @@ test('簽到(真的點)', { tag: '@click' }, async ({ page }, testInfo) => {
     await test.step('發送成功通知', async () => {
         const nowTW = new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' });
         const location = `📍 ${getEnvLocationName(env)}`;
-        const message = `✅ 簽到成功\n🕒 ${nowTW}\n${location}`;
+        const message = `✅ 檢查完畢，已成功簽到\n🕒 ${nowTW}\n${location}`;
 
         // 先上傳圖片到 Discord 獲取 URL
         let imageUrl: string | undefined;
