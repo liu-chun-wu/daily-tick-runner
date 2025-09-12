@@ -10,7 +10,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOG_DIR="$HOME/.daily-tick-runner/logs"
 LOG_FILE="$LOG_DIR/auto-punch-$(date +%Y%m).log"
-WORKFLOW_NAME="正式排程 - 自動打卡"
+WORKFLOW_NAME="正式排程 - 自動檢查打卡"
 
 # 建立日誌目錄
 mkdir -p "$LOG_DIR"

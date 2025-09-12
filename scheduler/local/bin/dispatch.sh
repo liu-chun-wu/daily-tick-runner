@@ -12,8 +12,8 @@ LOG_DIR="$HOME/.daily-tick-runner/logs"
 LOG_FILE="$LOG_DIR/dispatch-$(date +%Y%m).log"
 
 # Workflow 名稱
-TEST_WORKFLOW="測試排程 - 自動打卡"
-PRODUCTION_WORKFLOW="正式排程 - 自動打卡"
+TEST_WORKFLOW="測試排程 - 自動檢查打卡"
+PRODUCTION_WORKFLOW="正式排程 - 自動檢查打卡"
 
 # 建立日誌目錄
 mkdir -p "$LOG_DIR"
