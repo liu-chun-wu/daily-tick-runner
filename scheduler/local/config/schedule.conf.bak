@@ -7,14 +7,14 @@
 # ============================
 # 簽到時間設定
 # ============================
-CHECKIN_HOUR=8
-CHECKIN_MINUTE=30
+CHECKIN_HOUR=11
+CHECKIN_MINUTE=18
 
 # ============================
 # 簽退時間設定
 # ============================
-CHECKOUT_HOUR=17
-CHECKOUT_MINUTE=50
+CHECKOUT_HOUR=18
+CHECKOUT_MINUTE=0
 
 # ============================
 # 工作日設定
