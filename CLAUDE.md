@@ -9,6 +9,7 @@ Daily Tick Runner is an automated attendance system built with Playwright that p
 ## 🛠️ Common Commands
 
 ### Development & Testing
+
 ```bash
 # Install dependencies
 npm install
@@ -39,6 +40,7 @@ npm run test:debug
 ```
 
 ### Playwright Commands
+
 ```bash
 # Run specific test file
 npx playwright test tests/check/checkin.smoke.spec.ts
@@ -67,6 +69,7 @@ npx playwright show-trace test-results/**/trace.zip
 ```
 
 ### Single Test Execution
+
 ```bash
 # Run specific check-in test
 npx playwright test tests/check/checkin.click.spec.ts --project=chromium-click
@@ -182,6 +185,7 @@ The codebase follows the Page Object Model pattern:
 - `AttendancePage`: Manages navigation to attendance page and check-in/check-out actions
 
 Key implementation details:
+
 - Uses Playwright's modern locator strategies (getByRole, getByPlaceholder)
 - Implements auto-waiting patterns
 - Includes proper error handling and verification
@@ -191,6 +195,7 @@ Key implementation details:
 Environment variables are managed through `config/env.ts` with strict validation:
 
 **Required Variables:**
+
 - `BASE_URL`: AOA system URL
 - `COMPANY_CODE`: Company identifier
 - `AOA_USERNAME`: Login username
@@ -200,6 +205,7 @@ Environment variables are managed through `config/env.ts` with strict validation
 - `LOCALE`: Locale setting (zh-TW)
 
 **Optional Variables:**
+
 - `DISCORD_WEBHOOK_URL`: Discord notification endpoint
 - `LINE_CHANNEL_ACCESS_TOKEN`, `LINE_USER_ID`: LINE notification setup
 - `LOG_LEVEL`: Logging verbosity
@@ -216,12 +222,14 @@ The system uses a multi-layered approach:
 ### CI/CD Integration
 
 GitHub Actions workflows:
+
 - `ci.yml`: Pull request and main branch testing
 - `production-schedule.yml`: Scheduled attendance automation
 - `test-schedule.yml`: Test scheduling workflow
 - `build-image.yml`: Custom Docker image building
 
 Uses custom container image: `ghcr.io/liu-chun-wu/daily-tick-runner/runner:latest` with:
+
 - Pre-installed Playwright browsers
 - Chinese font support
 - Consistent execution environment
