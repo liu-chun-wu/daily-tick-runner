@@ -104,7 +104,7 @@ jobs:
           LOG_LEVEL: ${{ vars.LOG_LEVEL || 'INFO' }}
 
       - name: 📤 Upload test results (if failed)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         if: failure()
         with:
           name: test-results-${{ github.run_number }}
@@ -114,7 +114,7 @@ jobs:
           retention-days: 7
 
       - name: 📊 Upload traces (if failed)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         if: failure()
         with:
           name: traces-${{ github.run_number }}

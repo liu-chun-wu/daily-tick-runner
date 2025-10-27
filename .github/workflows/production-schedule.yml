@@ -138,7 +138,7 @@ jobs:
             npx playwright test tests/check/checkout.click.spec.ts --project=chromium-click --workers=1 --trace=on
 
       - name: 📤 Upload test results (if failed)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         if: failure()
         with:
           name: production-results-${{ github.run_number }}
