@@ -17,7 +17,7 @@
             <key>Hour</key>
             <integer>18</integer>
             <key>Minute</key>
-            <integer>10</integer>
+            <integer>40</integer>
             <key>Weekday</key>
             <integer>1</integer>
         </dict>
@@ -25,7 +25,7 @@
             <key>Hour</key>
             <integer>18</integer>
             <key>Minute</key>
-            <integer>10</integer>
+            <integer>40</integer>
             <key>Weekday</key>
             <integer>5</integer>
         </dict>
