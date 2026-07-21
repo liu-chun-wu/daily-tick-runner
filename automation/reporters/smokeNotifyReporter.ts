@@ -52,11 +52,18 @@ class SmokeNotifyReporter implements Reporter {
         ].join('\n');
 
         const notifications: Promise<void>[] = [];
-        if (discordEnabled) notifications.push(notifyDiscord({ message }));
-        if (lineEnabled) notifications.push(notifyLine({ message }));
-        await Promise.all(notifications);
+        if (discordEnabled) notifications.push(notifyDiscord({ message, failOnError: true }));
+        if (lineEnabled) notifications.push(notifyLine({ message, failOnError: true }));
 
-        console.log('[SmokeNotify] Smoke 成功摘要已要求發送。');
+        try {
+            await Promise.all(notifications);
+        } catch (error) {
+            const detail = error instanceof Error ? error.message : String(error);
+            console.error(`[SmokeNotify] Smoke 通知驗證失敗：${detail}`);
+            return { status: 'failed' as const };
+        }
+
+        console.log('[SmokeNotify] Smoke 成功摘要已發送。');
     }
 }
 

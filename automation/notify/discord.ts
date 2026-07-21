@@ -53,6 +53,12 @@ function makeRequest(url: string, options: {
     });
 }
 
+function assertSuccessfulResponse(service: string, status: number) {
+    if (status < 200 || status >= 300) {
+        throw new Error(`${service} failed with HTTP ${status}`);
+    }
+}
+
 /**
  * 純圖片上傳到 Discord，不發送訊息內容，僅返回 CDN URL
  * 專用於其他通知服務（如 LINE）需要圖片 URL 的場景
@@ -232,15 +238,17 @@ export async function notifyDiscord(opts: NotifyOpts) {
             }
         }
 
-        // 沒圖或讀檔失敗 → 純文字，不阻斷 smoke
-        await makeRequest(url, {
+        // 沒圖或讀檔失敗 → 純文字通知
+        const response = await makeRequest(url, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify(payload),
         });
+        assertSuccessfulResponse('Discord webhook', response.status);
         log.notifySuccess('Discord', 'Discord');
     } catch (err) {
-        // 外部整合失敗不應讓 smoke 掛掉
+        // Production 維持 best-effort；明確的 Smoke 驗收才要求失敗。
         log.notifyFailed('Discord', 'Discord', err as Error);
+        if (opts.failOnError) throw err;
     }
 }

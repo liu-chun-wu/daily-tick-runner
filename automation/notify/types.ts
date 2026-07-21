@@ -19,4 +19,7 @@ export interface NotifyOpts {
     
     /** 已上傳的圖片 URL（避免重複上傳） */
     imageUrl?: string;
+
+    /** 僅供明確的整合驗收使用；通知失敗時拋出例外 */
+    failOnError?: boolean;
 }

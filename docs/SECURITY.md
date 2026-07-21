@@ -71,7 +71,7 @@ Fork PR 不會取得 Repository Secrets。PR job 只能用假值建置並執行 
 
 ## 通知
 
-通知是選用且非打卡結果的唯一證據。成功通知失敗不應觸發第二次打卡。Discord workflow-failure 通知以 best effort 執行，錯誤不會覆蓋原始失敗原因。
+通知是選用且非打卡結果的唯一證據。手動 `Build & Smoke Test` 的通知驗收只把 Secrets 注入該 step，並要求通知 API 成功；push 與 PR 不接收通知 Secrets。正式打卡的成功通知仍為 best effort，通知失敗不應觸發第二次打卡。Discord workflow-failure 通知也不會覆蓋原始失敗原因。
 
 ## 通報
 

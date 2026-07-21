@@ -36,7 +36,7 @@ Fork 本身不保證會觸發初次建置，因此初始化必須手動執行 `B
 1. workflow 由 `github.repository` 轉成小寫，得到 `ghcr.io/<fork-owner>/<repo>/runner`。
 2. 使用目前 commit 建置並推送 `runner:sha-<commit>`。
 3. 拉回該 SHA image，先執行 `test:list` 與本機結果判斷測試。
-4. 使用同一 image 登入目標並執行安全 Smoke；不點打卡按鈕、不發通知。
+4. 使用同一 image 登入目標並執行安全 Smoke；不點打卡按鈕。手動執行預設會發送已設定 Discord／LINE 的成功摘要，且通知失敗會使 Smoke 失敗；取消該選項則不發送通知。
 5. 全部通過後，才將該 image 追加 `runner:latest` tag。
 
 GHCR 的 push 與 pull 使用 workflow 內建的 `GITHUB_TOKEN`，同一 Fork 不需要 PAT。Docker image 的 OCI source label 會連結回該 Fork，方便 GitHub Packages 套用 repository 權限。
@@ -44,11 +44,11 @@ GHCR 的 push 與 pull 使用 workflow 內建的 `GITHUB_TOKEN`，同一 Fork �
 ### 取消與失敗
 
 - 候選 SHA image 可能已存在，便於稽核或除錯。
-- Smoke 失敗、Secret 缺少或 workflow 被取消時，promotion job 不會執行。
+- Smoke、啟用的通知驗收失敗、Secret 缺少或 workflow 被取消時，promotion job 不會執行。
 - 已存在的 `latest` 保持不變，因此正式流程不會自動改用未測試版本。
 - 使用者手動取消的 run 屬於取消，不代表 workflow trigger 異常。
 
-`main` 的每次 push 都會執行，包含只有 Markdown 或文件變更的 commit；沒有 paths 排除。Pull request 只建置不發佈的 image 並載入測試設定，因為 Fork PR 不會取得 Repository Secrets。
+`main` 的每次 push 都會執行，包含只有 Markdown 或文件變更的 commit；沒有 paths 排除，且不發送 Smoke 通知。Pull request 只建置不發佈的 image 並載入測試設定，因為 Fork PR 不會取得 Repository Secrets。
 
 ## 4. 手動執行正式打卡
 

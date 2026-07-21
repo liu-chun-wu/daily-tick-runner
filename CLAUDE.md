@@ -21,7 +21,7 @@ npm run test:result
 
 `npm test` and `npm run test:smoke` do not click attendance or send notifications, but they do log into the configured target and therefore require an authorized environment.
 
-`npm run smoke:notify` is an explicit side-effecting local command. It may send one summary only after the safe Smoke suite passes; do not add it to CI or make it the default test command.
+`npm run smoke:notify` is an explicit side-effecting command. It is permitted only in the manually dispatched `Build & Smoke Test` notification step; pushes and pull requests must never invoke it. It sends one summary only after the safe Smoke suite passes, and notification failure must fail that manual validation.
 
 ## Runtime contract
 

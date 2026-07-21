@@ -48,7 +48,7 @@ AOA_LON=0
 
 不要建立「跑全部 project」的便利命令，因為它很容易意外包含真實打卡或通知。
 
-`smoke:notify` 是明確的手動 opt-in。沒有任何通知設定時會以失敗結束；Smoke 本身失敗、timeout 或被取消時不發送成功摘要。它不應加入 `Build & Smoke Test` workflow。
+`smoke:notify` 是明確的手動 opt-in。`Build & Smoke Test` 的手動 dispatch 預設啟用此模式；push 與 PR 一律不發通知。沒有完整通知設定、通知 API 失敗、Smoke 本身失敗或 timeout 時，通知驗收會失敗且不推進 `latest`。
 
 ## 結果判斷測試
 

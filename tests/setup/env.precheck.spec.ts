@@ -1,7 +1,6 @@
 // tests/setup/env.precheck.spec.ts
 import { test, expect } from '@playwright/test';
 import { env } from '../../config/env';
-import { log } from '../../automation/utils/logger';
 
 test.describe('環境變數前置檢查', () => {
     test('必填變數存在且格式正確', () => {
@@ -16,13 +15,5 @@ test.describe('環境變數前置檢查', () => {
         // 檢查數字格式
         expect(Number.isFinite(env.lat), 'AOA_LAT 必須是有效數字').toBeTruthy();
         expect(Number.isFinite(env.lon), 'AOA_LON 必須是有效數字').toBeTruthy();
-        
-        // 檢查可選的通知設定（只警告，不失敗）
-        if (!env.discordWebhookUrl) {
-            log.warn('EnvCheck', '未設定 DISCORD_WEBHOOK_URL，Discord 通知將被禁用');
-        }
-        if (!env.lineChannelAccessToken || !env.lineUserId) {
-            log.warn('EnvCheck', '未設定 LINE 相關環境變數，LINE 通知將被禁用');
-        }
     });
 });

@@ -64,4 +64,4 @@ type AttendanceResult =
 
 必要值只有六個：`BASE_URL`、`COMPANY_CODE`、`AOA_USERNAME`、`AOA_PASSWORD`、`AOA_LAT`、`AOA_LON`。本機由 `.env` 注入，GitHub 由 Repository Secrets 注入。`.dockerignore` 排除 `.env*`（保留範例）、authentication state、截圖與測試產物，這些資料不會成為 image layer。
 
-通知設定為選用。Smoke job 不接收通知 Secrets，也不呼叫通知 API；Production 只有在結果成功時呼叫成功通知。
+通知設定為選用。`main` push 的 Smoke 不接收通知 Secrets，也不呼叫通知 API；手動 dispatch 可明確啟用通知驗收，僅該 step 接收 Secrets，且 Discord／LINE API 失敗會讓 Smoke 失敗。Production 只有在結果成功時呼叫 best-effort 成功通知。

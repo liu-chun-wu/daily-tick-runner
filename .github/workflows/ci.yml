@@ -2,6 +2,12 @@ name: Build & Smoke Test
 
 on:
   workflow_dispatch:
+    inputs:
+      send_smoke_notification:
+        description: Send a success summary to configured Discord/LINE channels
+        required: true
+        default: true
+        type: boolean
   pull_request:
   push:
     branches:
@@ -21,7 +27,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Build pull request image without publishing
         run: |
@@ -53,7 +59,7 @@ jobs:
       image: ${{ steps.image.outputs.name }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Resolve Fork-owned image name
         id: image
@@ -63,17 +69,17 @@ jobs:
           echo "name=${image}" >> "$GITHUB_OUTPUT"
 
       - name: Login to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ github.token }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Build and publish candidate SHA image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: docker/Dockerfile
@@ -118,7 +124,7 @@ jobs:
           fi
 
       - name: Login to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -139,6 +145,7 @@ jobs:
             "$IMAGE" npm run test:result
 
       - name: Run login and safe Smoke with candidate image
+        if: github.event_name != 'workflow_dispatch' || inputs.send_smoke_notification != true
         run: |
           mkdir -p test-results playwright-report
           docker run --rm --ipc=host \
@@ -147,6 +154,42 @@ jobs:
             -v "$GITHUB_WORKSPACE/test-results:/app/test-results" \
             -v "$GITHUB_WORKSPACE/playwright-report:/app/playwright-report" \
             "$IMAGE" npm run test:smoke
+
+      - name: Run login and Smoke with notification
+        if: github.event_name == 'workflow_dispatch' && inputs.send_smoke_notification == true
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
+          LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
+        run: |
+          channels=()
+
+          if [ -n "${DISCORD_WEBHOOK_URL:-}" ]; then
+            channels+=("Discord")
+          fi
+
+          if [ -n "${LINE_CHANNEL_ACCESS_TOKEN:-}" ] || [ -n "${LINE_USER_ID:-}" ]; then
+            if [ -z "${LINE_CHANNEL_ACCESS_TOKEN:-}" ] || [ -z "${LINE_USER_ID:-}" ]; then
+              echo "::error::LINE notification requires both LINE_CHANNEL_ACCESS_TOKEN and LINE_USER_ID"
+              exit 1
+            fi
+            channels+=("LINE")
+          fi
+
+          if [ "${#channels[@]}" -eq 0 ]; then
+            echo "::error::Smoke notification requested, but no complete Discord or LINE Repository Secrets are configured"
+            exit 1
+          fi
+
+          echo "Smoke notification channels: ${channels[*]}"
+          mkdir -p test-results playwright-report
+          docker run --rm --ipc=host \
+            -e BASE_URL -e COMPANY_CODE -e AOA_USERNAME -e AOA_PASSWORD \
+            -e AOA_LAT -e AOA_LON -e TZ -e LOCALE -e LOG_LEVEL \
+            -e DISCORD_WEBHOOK_URL -e LINE_CHANNEL_ACCESS_TOKEN -e LINE_USER_ID \
+            -v "$GITHUB_WORKSPACE/test-results:/app/test-results" \
+            -v "$GITHUB_WORKSPACE/playwright-report:/app/playwright-report" \
+            "$IMAGE" npm run smoke:notify
 
       - name: Upload failed Smoke evidence
         if: failure()
@@ -174,7 +217,7 @@ jobs:
       CANDIDATE: ${{ needs.build-candidate.outputs.image }}:sha-${{ github.sha }}
     steps:
       - name: Login to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}

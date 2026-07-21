@@ -8,11 +8,11 @@
 
 1. Fork 此專案，在 Fork 的 **Actions** 頁啟用 workflows。
 2. 到 **Settings → Secrets and variables → Actions → Repository secrets** 建立下表六個必填 Secrets。
-3. 到 **Actions → Build & Smoke Test → Run workflow** 手動執行一次。
+3. 到 **Actions → Build & Smoke Test → Run workflow** 手動執行一次；設定通知 Secrets 時保留「發送 Smoke 成功通知」為啟用。
 4. 確認所有 jobs 通過，且 Fork 自己的 GHCR 已產生 `runner:latest`。
 5. 到 **Actions → Production Attendance → Run workflow**，選擇 `checkin` 或 `checkout`。
 
-`Build & Smoke Test` 只會登入並檢查頁面，不會點擊簽到／簽退，也不會發送測試通知。第一次 Fork 必須手動執行它，正式流程才有可用的 `latest` image。
+`Build & Smoke Test` 只會登入並檢查頁面，不會點擊簽到／簽退。手動執行時，通知選項預設啟用：會把完整設定的 Discord／LINE Secrets 傳給 Smoke，並在所有 Smoke 通過後發送摘要；通知 API 拒絕或失敗會讓 run 失敗。`main` push 與 PR 不發通知。第一次 Fork 必須手動執行它，正式流程才有可用的 `latest` image。
 
 ## 必填 Repository Secrets
 
@@ -46,7 +46,7 @@ flowchart LR
     D --> F[Manual or scheduled attendance]
 ```
 
-每次 `main` push 或手動執行會建立 `runner:sha-<commit>`。只有該候選 image 完成載入檢查、結果判斷測試與安全 Smoke 後，同一 image 才會被標記為 `latest`。失敗或取消不會把未驗證版本推進為 `latest`。
+每次 `main` push 或手動執行會建立 `runner:sha-<commit>`。只有該候選 image 完成載入檢查、結果判斷測試與 Smoke 後，同一 image 才會被標記為 `latest`；若手動啟用通知，通知摘要也必須成功送出。失敗或取消不會把未驗證版本推進為 `latest`。
 
 Pull request 沒有 Repository Secrets，因此只建置本機 image 並執行無外部副作用的載入檢查；不登入 AOA，也不推送 GHCR。
 

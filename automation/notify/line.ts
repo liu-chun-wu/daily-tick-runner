@@ -41,6 +41,9 @@ export async function notifyLine(opts: NotifyOpts) {
         // 檢查是否月額度已用完
         if (response.status === 429) {
             const errorText = await response.text();
+            if (opts.failOnError) {
+                throw new Error(`LINE API monthly quota exceeded: ${errorText}`);
+            }
             log.warn('LINE', `LINE API 月額度已用完: ${errorText}`);
             
             // Fallback 到 Discord
@@ -77,7 +80,7 @@ export async function notifyLine(opts: NotifyOpts) {
         // 檢查其他錯誤
         if (!response.ok) {
             const errorText = await response.text();
-            log.warn('LINE', `LINE API 錯誤 (${response.status}): ${errorText}`);
+            throw new Error(`LINE API failed (${response.status}): ${errorText}`);
         }
 
         // 2) 如果已有圖片 URL，直接使用
@@ -159,8 +162,9 @@ export async function notifyLine(opts: NotifyOpts) {
 
         log.notifySuccess('LINE', 'LINE');
     } catch (err) {
-        // 外部整合失敗不應讓測試掛掉
+        // Production 維持 best-effort；明確的 Smoke 驗收才要求失敗。
         log.notifyFailed('LINE', 'LINE', err as Error);
+        if (opts.failOnError) throw err;
     }
 }
 

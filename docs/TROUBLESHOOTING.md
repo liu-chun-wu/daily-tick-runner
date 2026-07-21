@@ -93,7 +93,7 @@ docker run --rm daily-tick-runner:verify npx playwright --version
 
 ## Smoke 成功但沒有測試通知
 
-這是 `npm test` 與 `npm run test:smoke` 的設計行為。要在 Smoke 全部成功後發送一則摘要，需在受控本機設定選填環境變數後明確執行：
+`npm test` 與 `npm run test:smoke` 本機預設不發通知。GitHub 的手動 **Build & Smoke Test** 預設會啟用通知驗收：確認 `DISCORD_WEBHOOK_URL`，或同時設定 `LINE_CHANNEL_ACCESS_TOKEN` 與 `LINE_USER_ID`，再保留通知選項為啟用。push 與 PR 不會發送通知。
 
 ```bash
 npm run smoke:notify
@@ -107,7 +107,7 @@ npm run notify:test
 
 此命令會真的發送訊息。
 
-`smoke:notify` 沒有設定任何通知平台時會失敗；Smoke 失敗時不會發送成功摘要。
+`smoke:notify` 沒有完整通知平台設定時會失敗；Smoke 失敗時不會發送成功摘要。GitHub 手動驗收中若通知 API 回傳錯誤或 LINE 額度耗盡，也會失敗並保持既有 `latest` image。
 
 ## Docker Compose 找不到 .env
 
