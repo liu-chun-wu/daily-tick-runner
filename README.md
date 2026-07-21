@@ -98,8 +98,8 @@
 
 ```env
 # 系統設定
-BASE_URL=https://erpline.aoacloud.com.tw/
-COMPANY_CODE=CYBERBIZ
+BASE_URL=XXX
+COMPANY_CODE=XXX
 
 # 登入資訊
 AOA_USERNAME=user@example.com
