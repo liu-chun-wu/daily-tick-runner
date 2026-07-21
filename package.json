@@ -1,40 +1,37 @@
 {
   "name": "daily-tick-runner",
   "version": "1.0.0",
-  "description": "**daily-tick-runner**",
+  "description": "Run authorized attendance checks with Playwright and GitHub Actions.",
   "main": "index.js",
   "directories": {
     "test": "tests"
   },
   "scripts": {
+    "test": "npm run test:smoke",
     "test:setup": "playwright test --project=setup --workers=1",
     "test:smoke": "playwright test --project=chromium-smoke --workers=1",
-    "test:click": "playwright test --project=chromium-click --workers=1",
-    "test:notify": "playwright test --project=notify --workers=1", 
-    "test:all": "playwright test",
+    "smoke:notify": "playwright test --project=chromium-smoke --workers=1 --reporter=./automation/reporters/smokeNotifyReporter.ts",
+    "test:list": "playwright test --list",
+    "test:result": "playwright test --project=result --workers=1",
+    "attendance:checkin": "playwright test tests/check/checkin.click.spec.ts --project=chromium-click --workers=1",
+    "attendance:checkout": "playwright test tests/check/checkout.click.spec.ts --project=chromium-click --workers=1",
+    "notify:test": "playwright test --project=notify --workers=1",
     "test:ui": "playwright test --ui",
     "test:debug": "playwright test --debug",
     "playwright:install": "playwright install",
-    "playwright:install-deps": "playwright install-deps",
-    "postinstall": "playwright install chromium"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/liu-chun-wu/daily-tick-runner.git"
+    "playwright:install-deps": "playwright install-deps"
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/liu-chun-wu/daily-tick-runner/issues"
+  "license": "MIT",
+  "engines": {
+    "node": ">=24"
   },
-  "homepage": "https://github.com/liu-chun-wu/daily-tick-runner#readme",
   "devDependencies": {
-    "@playwright/test": "^1.54.2",
+    "@playwright/test": "1.61.0",
     "@types/node": "^24.2.1"
   },
   "dependencies": {
-    "dotenv": "^17.2.1",
-    "undici": "^7.14.0"
+    "dotenv": "^17.2.1"
   }
 }

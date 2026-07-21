@@ -1,28 +1,25 @@
-name: 正式排程 - 自動檢查打卡 
+name: Production Attendance
+
+# Replace these two placeholders before enabling the commented schedule block.
+env:
+  CHECKIN_CRON: &checkin_cron '<CHECKIN_CRON>'
+  CHECKOUT_CRON: &checkout_cron '<CHECKOUT_CRON>'
 
 on:
-  # # 正式排程時間（暫時註解）
-  # schedule:
-  #   # 週一到週五 早上 8:30 (UTC 00:30) - 簽到時間
-  #   - cron: '30 0 * * 1-5'
-  #   # 週一到週五 下午 18:00 (UTC 10:00) - 簽退時間  
-  #   - cron: '0 10 * * 1-5'
-  
-  # 允許手動觸發
   workflow_dispatch:
     inputs:
       action_type:
-        description: '打卡類型'
+        description: Attendance action
         required: true
-        default: 'checkin'
+        default: checkin
         type: choice
         options:
-          - checkin    # 簽到
-          - checkout   # 簽退
+          - checkin
+          - checkout
       log_level:
-        description: '日誌等級'
-        required: false
-        default: 'DEBUG'
+        description: Log level
+        required: true
+        default: INFO
         type: choice
         options:
           - DEBUG
@@ -30,128 +27,130 @@ on:
           - WARN
           - ERROR
 
+  # To enable scheduling, replace both placeholders above and uncomment:
+  # schedule:
+  #   - cron: *checkin_cron
+  #     timezone: Asia/Taipei
+  #   - cron: *checkout_cron
+  #     timezone: Asia/Taipei
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: production-attendance-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  production-punch:
+  attendance:
     runs-on: ubuntu-latest
-    container: ghcr.io/liu-chun-wu/daily-tick-runner/runner:latest  # 使用自有映像
-    timeout-minutes: 15
-    
+    timeout-minutes: 20
     env:
-      BASE_URL: ${{ vars.BASE_URL || 'https://erpline.aoacloud.com.tw/' }}
-      COMPANY_CODE: ${{ vars.COMPANY_CODE ||'CYBERBIZ'}}
+      CHECKIN_CRON: *checkin_cron
+      CHECKOUT_CRON: *checkout_cron
+      BASE_URL: ${{ secrets.BASE_URL }}
+      COMPANY_CODE: ${{ secrets.COMPANY_CODE }}
       AOA_USERNAME: ${{ secrets.AOA_USERNAME }}
       AOA_PASSWORD: ${{ secrets.AOA_PASSWORD }}
-      AOA_LAT: ${{ vars.AOA_LAT || '25.080869' }}
-      AOA_LON: ${{ vars.AOA_LON || '121.569862' }}
-      TZ: ${{ vars.TZ || 'Asia/Taipei' }}
-      LOCALE: ${{ vars.LOCALE || 'zh-TW' }}
+      AOA_LAT: ${{ secrets.AOA_LAT }}
+      AOA_LON: ${{ secrets.AOA_LON }}
       DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
       LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
       LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
-      LOG_LEVEL: ${{ github.event.inputs.log_level || 'INFO' }}
-    
+      TZ: Asia/Taipei
+      LOCALE: zh-TW
+      LOG_LEVEL: ${{ inputs.log_level || 'INFO' }}
     steps:
-      - name: 📥 Checkout repository
-        uses: actions/checkout@v4
-
-      - name: 🕐 判斷執行時機
-        id: determine-action
+      - name: Determine requested action
+        id: action
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          MANUAL_ACTION: ${{ inputs.action_type }}
+          SCHEDULE_EXPRESSION: ${{ github.event.schedule }}
         run: |
-          # 取得台北時間
-          TAIPEI_HOUR=$(TZ='Asia/Taipei' date '+%H')
-          TAIPEI_MINUTE=$(TZ='Asia/Taipei' date '+%M')
-          TAIPEI_TIME="${TAIPEI_HOUR}:${TAIPEI_MINUTE}"
-          
-          echo "台北時間: $TAIPEI_TIME"
-          
-          # 手動觸發時使用輸入參數
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            ACTION_TYPE="${{ github.event.inputs.action_type }}"
-            echo "手動觸發，執行類型: $ACTION_TYPE"
-          else
-            # 自動排程判斷
-            if [ "$TAIPEI_HOUR" -ge 8 ] && [ "$TAIPEI_HOUR" -le 10 ]; then
-              ACTION_TYPE="checkin"
-              echo "上午時段，執行簽到"
-            elif [ "$TAIPEI_HOUR" -ge 17 ] && [ "$TAIPEI_HOUR" -le 19 ]; then
-              ACTION_TYPE="checkout"  
-              echo "下午時段，執行簽退"
-            else
-              ACTION_TYPE=""  # 默認不執行
-              echo "非打卡時間，不執行任何操作"
-            fi
+          if [ "$EVENT_NAME" = "schedule" ] && [ "$CHECKIN_CRON" = "$CHECKOUT_CRON" ]; then
+            echo "::error::CHECKIN_CRON and CHECKOUT_CRON must be different"
+            exit 1
           fi
-          
-          echo "action_type=$ACTION_TYPE" >> $GITHUB_OUTPUT
-          echo "taipei_time=$TAIPEI_TIME" >> $GITHUB_OUTPUT
-          echo "should_run=$([[ -n "$ACTION_TYPE" ]] && echo "true" || echo "false")" >> $GITHUB_OUTPUT
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            action="$MANUAL_ACTION"
+          elif [ "$SCHEDULE_EXPRESSION" = "$CHECKIN_CRON" ]; then
+            action="checkin"
+          elif [ "$SCHEDULE_EXPRESSION" = "$CHECKOUT_CRON" ]; then
+            action="checkout"
+          else
+            echo "::error::Schedule does not match CHECKIN_CRON or CHECKOUT_CRON"
+            exit 1
+          fi
+          echo "type=$action" >> "$GITHUB_OUTPUT"
 
-      - name: ⏹️ 早期退出（非執行時間）
-        if: steps.determine-action.outputs.should_run != 'true'
+      - name: Check required Secrets
+        shell: bash
         run: |
-          echo "⏹️ 非打卡時間，工作流程提前結束"
-          echo "⏰ 台北時間: ${{ steps.determine-action.outputs.taipei_time }}"
-          echo "💡 這樣可以節省 GitHub Actions 的使用時間"
-          exit 0
+          missing=()
+          for name in BASE_URL COMPANY_CODE AOA_USERNAME AOA_PASSWORD AOA_LAT AOA_LON; do
+            if [ -z "${!name:-}" ]; then
+              missing+=("$name")
+            fi
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "::error::Missing Repository Secrets: ${missing[*]}"
+            exit 1
+          fi
 
-      - name: 📦 Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: 'npm'
-
-      - name: 🔧 Install dependencies
-        run: npm ci
-
-      # Playwright 瀏覽器和中文字型已在容器中預裝，無需再安裝
-
-      - name: 🔍 Environment check and login setup
-        if: steps.determine-action.outputs.should_run == 'true'
+      - name: Resolve Fork-owned image name
+        id: image
+        shell: bash
         run: |
-          echo "🔍 開始環境檢查和登入設置..."
-          npx playwright test --project=setup --workers=1
+          image="ghcr.io/${GITHUB_REPOSITORY,,}/runner:latest"
+          echo "name=${image}" >> "$GITHUB_OUTPUT"
 
-      - name: ✅ 執行簽到（含重試機制）
-        if: steps.determine-action.outputs.action_type == 'checkin'
-        uses: nick-fields/retry@v3
+      - name: Login to GHCR
+        uses: docker/login-action@v3
         with:
-          timeout_minutes: 15
-          max_attempts: 3
-          retry_wait_seconds: 60
-          retry_on: error
-          command: |
-            echo "✅ 開始執行簽到..."
-            echo "⏰ 台北時間: ${{ steps.determine-action.outputs.taipei_time }}"
-            npx playwright test tests/check/checkin.click.spec.ts --project=chromium-click --workers=1 --trace=on
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
 
-      - name: ❌ 執行簽退（含重試機制）
-        if: steps.determine-action.outputs.action_type == 'checkout'
-        uses: nick-fields/retry@v3
-        with:
-          timeout_minutes: 15
-          max_attempts: 3
-          retry_wait_seconds: 60
-          retry_on: error
-          command: |
-            echo "❌ 開始執行簽退..."
-            echo "⏰ 台北時間: ${{ steps.determine-action.outputs.taipei_time }}"
-            npx playwright test tests/check/checkout.click.spec.ts --project=chromium-click --workers=1 --trace=on
+      - name: Pull last tested image
+        run: docker pull "${{ steps.image.outputs.name }}"
 
-      - name: 📤 Upload test results (if failed)
-        uses: actions/upload-artifact@v4
+      - name: Run one attendance attempt
+        env:
+          ACTION_TYPE: ${{ steps.action.outputs.type }}
+          IMAGE: ${{ steps.image.outputs.name }}
+        run: |
+          mkdir -p test-results playwright-report
+          docker run --rm --ipc=host \
+            -e BASE_URL -e COMPANY_CODE -e AOA_USERNAME -e AOA_PASSWORD \
+            -e AOA_LAT -e AOA_LON -e DISCORD_WEBHOOK_URL \
+            -e LINE_CHANNEL_ACCESS_TOKEN -e LINE_USER_ID \
+            -e TZ -e LOCALE -e LOG_LEVEL \
+            -v "$GITHUB_WORKSPACE/test-results:/app/test-results" \
+            -v "$GITHUB_WORKSPACE/playwright-report:/app/playwright-report" \
+            "$IMAGE" npm run "attendance:$ACTION_TYPE"
+
+      - name: Upload failure evidence
         if: failure()
+        uses: actions/upload-artifact@v4
         with:
           name: production-results-${{ github.run_number }}
           path: |
             test-results/
             playwright-report/
+          if-no-files-found: ignore
           retention-days: 14
 
-      - name: 🚨 Notify on failure
-        if: failure() && steps.determine-action.outputs.should_run == 'true'
+      - name: Notify Discord on workflow failure
+        if: failure()
+        env:
+          ACTION_TYPE: ${{ steps.action.outputs.type }}
         run: |
           if [ -n "$DISCORD_WEBHOOK_URL" ]; then
-            curl -H "Content-Type: application/json" \
-                 -d "{\"content\":\"🚨 **正式自動打卡失敗**\n📅 日期: $(TZ='Asia/Taipei' date '+%Y-%m-%d')\n⏰ 時間: ${{ steps.determine-action.outputs.taipei_time }}\n🎯 執行類型: ${{ steps.determine-action.outputs.action_type }}\n🔗 查看詳情: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" \
-                 "$DISCORD_WEBHOOK_URL" || echo "Discord 通知發送失敗"
+            curl --fail-with-body \
+              -H "Content-Type: application/json" \
+              -d "{\"content\":\"Attendance workflow failed (${ACTION_TYPE}). See: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" \
+              "$DISCORD_WEBHOOK_URL" || true
           fi

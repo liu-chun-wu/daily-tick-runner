@@ -1,536 +1,67 @@
-# 系統架構設計
+# 目前架構
 
-本文檔說明 Daily Tick Runner 的系統架構、技術選型理由和設計原則。
+Daily Tick Runner 是單一 Node.js／Playwright application，由 GitHub Actions 建置為容器並執行。系統沒有常駐服務或資料庫，排程入口只有 GitHub Actions。
 
-## 📋 目錄
+## 元件
 
-- [系統架構總覽](#系統架構總覽)
-- [技術選型](#技術選型)
-- [核心設計原則](#核心設計原則)
-- [架構層級](#架構層級)
-- [執行流程](#執行流程)
-- [安全架構](#安全架構)
-- [可觀測性設計](#可觀測性設計)
-- [韌性與容錯](#韌性與容錯)
+| 元件 | 責任 |
+| --- | --- |
+| `config/env.ts` | 在啟動瀏覽器前讀取並驗證必要設定 |
+| `automation/pages/LoginPage.ts` | 登入頁操作 |
+| `automation/pages/AttendancePage.ts` | 導航出勤頁、單次 click、判斷 alert 結果 |
+| `automation/notify/` | 選用 Discord／LINE 通知 |
+| `tests/setup/` | 登入並建立暫時的 Playwright storage state |
+| `tests/check/*.smoke.spec.ts` | 登入後確認簽到／簽退 UI，不 click |
+| `tests/check/*.click.spec.ts` | 使用者明確要求時執行一次真實操作 |
+| `tests/check/attendance-result.spec.ts` | 本機模擬成功、失敗、未知與 timeout |
+| `docker/Dockerfile` | Node 24+、Playwright 1.61.0 與 Chromium 執行環境 |
+| `ci.yml` | 建置候選、Smoke、推進 stable image |
+| `production-schedule.yml` | 以 stable image 手動或選用排程執行 |
 
-## 系統架構總覽
-
-```mermaid
-flowchart TB
-  subgraph Trigger
-    GA[GitHub Actions]
-    LS[Local Scheduler]
-    CLI[Manual CLI]
-  end
-
-  subgraph Orchestration
-    FC[Flow Controller]
-  end
-
-  subgraph Execution
-    PE[Policy Engine]
-    AE[Automation Engine]
-    NS[Notify Service]
-    RV[Rules Validation]
-    PW[Playwright Browser]
-    NT[Discord / LINE]
-  end
-
-  GA --> FC
-  LS --> FC
-  CLI --> FC
-
-  FC --> PE
-  FC --> AE
-  FC --> NS
-
-  PE --> RV
-  AE --> PW
-  NS --> NT
-
-
-```
-
-## 技術選型
-
-### 核心框架：Playwright
-
-**選擇理由：**
-
-1. **內建 Auto-waiting**
-   - 自動等待元素可互動
-   - 減少 flaky tests
-   - 不需手動管理等待
-
-2. **優異的除錯能力**
-   - Trace Viewer 完整記錄執行過程
-   - 時間旅行除錯
-   - 自動截圖和錄影
-
-3. **現代化 API**
-   - Locator API 提供穩定選擇器
-   - Web-first assertions 自動重試
-   - 原生 TypeScript 支援
-
-4. **跨瀏覽器支援**
-   - Chromium、Firefox、WebKit
-   - 行動裝置模擬
-   - 地理位置和時區模擬
-
-**對比 Selenium：**
-- Selenium 需要顯式等待管理
-- 缺乏內建的除錯工具
-- API 較為冗長
-- 社群逐漸轉向 Playwright
-
-### 排程系統
-
-#### GitHub Actions（雲端）
-- 免費額度充足（2000分鐘/月）
-- 內建 secrets 管理
-- 簡單的 cron 語法
-- 自動化 CI/CD 整合
-
-#### APScheduler（本地）
-- 精確的時區控制
-- Jitter 避免同時觸發
-- 豐富的觸發器類型
-- Python 生態系整合
-
-### 通知服務
-
-#### Discord Webhook
-- 簡單的 HTTP API
-- 支援 Rich Embed
-- 無需認證複雜度
-- 即時送達
-
-#### LINE Messaging API
-- 台灣普及率高
-- 官方 SDK 支援
-- 訊息類型豐富
-- 企業級可靠性
-
-## 核心設計原則
-
-### 1. 關注點分離（Separation of Concerns）
-
-```mermaid
-flowchart LR
-  FL["流程邏輯 (Flows)"] <--> PO["頁面操作 (Page Objects)"]
-  PO <--> UT["基礎設施 (Utilities)"]
-
-  FL --> FB["登入、打卡等業務流程"]
-  PO --> PB["UI 互動邏輯"]
-  UT --> UB["通用工具函式"]
-
-```
-
-<!-- 原始關注點分離圖
-```
-流程邏輯   ←→.  頁面操作   ←→   基礎設施
-   ↓             ↓              ↓
- Flows      Page Objects     Utilities
-```
--->
-
-- **Flows**：業務流程（登入、打卡）
-- **Pages**：UI 互動邏輯
-- **Utils**：通用工具函式
-
-### 2. 冪等性（Idempotency）
-
-每次執行都應該是安全的，可重複執行：
-
-```typescript
-// 執行前檢查狀態
-if (await isAlreadyCheckedIn()) {
-  console.log('Already checked in today');
-  return;
-}
-
-// 執行操作
-await performCheckIn();
-
-// 驗證結果
-await verifyCheckInSuccess();
-```
-
-### 3. 防禦性程式設計
-
-```typescript
-// 多層驗證
-async function safeCheckIn() {
-  // 1. 政策檢查
-  if (!isWithinTimeWindow()) {
-    throw new PolicyError('Outside allowed time window');
-  }
-  
-  // 2. 前置條件
-  if (!await isLoggedIn()) {
-    await performLogin();
-  }
-  
-  // 3. 執行與驗證
-  try {
-    await clickCheckInButton();
-    await verifySuccess();
-  } catch (error) {
-    await captureEvidence();
-    throw error;
-  }
-}
-```
-
-### 4. 證據優先（Evidence-First）
-
-失敗時自動保留：
-- 截圖
-- HTML 內容
-- 網路請求記錄
-- 執行追蹤
-
-### 5. 12-Factor App 原則
-
-- **設定進環境**：不硬編碼密碼
-- **依賴明確宣告**：package.json
-- **開發生產一致**：Docker 容器
-- **日誌當作事件流**：結構化日誌
-
-## 架構層級
-
-### 第一層：觸發層（Trigger Layer）
-
-負責啟動執行流程：
-
-| 觸發源 | 使用場景 | 特點 |
-|--------|----------|------|
-| GitHub Actions | 生產環境 | 雲端執行、自動排程 |
-| Local Scheduler | 備用方案 | 本地控制、低延遲 |
-| Manual CLI | 除錯測試 | 即時執行、參數控制 |
-
-### 第二層：編排層（Orchestration Layer）
-
-流程控制器負責：
-1. 載入設定
-2. 政策檢查
-3. 執行協調
-4. 結果回報
-
-### 第三層：執行層（Execution Layer）
-
-#### Policy Engine
-- 時間窗口檢查
-- 地理位置驗證
-- 假日排除
-- 重複執行防護
-
-#### Automation Engine
-- Playwright 瀏覽器控制
-- Page Object 模式
-- 自動等待和重試
-- 證據收集
-
-#### Notify Service
-- 多通道通知
-- 失敗警告
-- 執行報告
-- 截圖附件
-
-## 執行流程
-
-### 完整執行生命週期
+## Image 與執行資料流
 
 ```mermaid
 flowchart TD
-  trig["觸發事件"] --> policy{"政策檢查通過?"}
-  policy -->|否| finish["結束"]
-  policy -->|是| load["載入設定"]
-  load --> openBrowser["啟動瀏覽器"]
-  openBrowser --> needLogin{"需要登入?"}
-  needLogin -->|是| login["執行登入"]
-  needLogin -->|否| sessionLoad["載入 Session"]
-  login --> nav["前往打卡頁"]
-  sessionLoad --> nav
-  nav --> canCheck{"可打卡?"}
-  canCheck -->|否| reason["記錄原因並通知"]
-  canCheck -->|是| doCheck["執行打卡"]
-  doCheck --> verify["驗證結果"]
-  verify --> isSuccess{"成功?"}
-  isSuccess -->|是| notifyOK["成功通知"]
-  isSuccess -->|否| notifyFail["失敗通知"]
-  notifyOK --> cleanup["清理資源"]
-  notifyFail --> cleanup
-  reason --> cleanup
-  cleanup --> finish
-
-
+    S[main push / workflow_dispatch] --> B[Build runner:sha-commit]
+    B --> L[test:list + result tests]
+    L --> M[Login + Smoke]
+    M -->|pass| P[Tag same digest as latest]
+    M -->|fail/cancel| K[Keep old latest]
+    P --> R[Production Attendance pulls latest]
+    R --> A[Login via setup dependency]
+    A --> C[One checkin or checkout click]
+    C --> O{Alert within 15 s}
+    O -->|打卡成功| N[Screenshot + optional notification]
+    O -->|打卡失敗| F[Screenshot + fail]
+    O -->|unknown/none| X[Evidence + exception]
 ```
 
-### 關鍵決策點
+Image 名稱在 workflow runtime 從小寫的 `github.repository` 產生，所以每個 Fork 使用自己的 `ghcr.io/<owner>/<repo>/runner`。
 
-1. **政策檢查**
-   - 工作日判斷
-   - 時間窗口驗證
-   - 黑名單日期
+## Playwright projects
 
-2. **認證管理**
-   - Session 復用
-   - Token 更新
-   - 失效重登
+- `setup`：驗證設定、登入並寫入 `playwright/.auth/state.json`。
+- `chromium-smoke`：依賴 `setup`，只執行標記 `@smoke` 的安全檢查。
+- `chromium-click`：依賴 `setup`，只執行 `@click`，且 project retries 固定為 0。
+- `result`：使用本機 HTML 模擬結果，不登入外部服務。
+- `notify`：只在明確執行 `npm run notify:test` 時測試通知 API。
 
-3. **執行策略**
-   - 重試機制
-   - 超時控制
-   - 錯誤分類
+全域 retry 只服務安全測試。正式 workflow 沒有外層 retry action，真實 click project 也沒有 Playwright retry，因此單次 run 不會因失敗或 timeout 自動再打卡。
 
-## 安全架構
+## 結果模型
 
-### 密鑰管理
+`AttendanceResult` 是 discriminated union：
 
-```mermaid
-flowchart LR
-  EV[環境變數] --> Secrets[GitHub Secrets / .env]
-  Secrets --> Runtime[Runtime Config]
-  Runtime --> App[Application]
-
+```ts
+type AttendanceResult =
+  | { status: 'success'; title: '打卡成功'; detail?: string }
+  | { status: 'failure'; title: '打卡失敗'; detail?: string };
 ```
 
-**原則：**
-- 永不提交密碼到版本控制
-- 使用環境變數注入
-- 定期輪換密鑰
-- 最小權限原則
+成功與已知失敗都是可辨識結果；未知標題與 15 秒 timeout 使用例外。呼叫端在 failure 或例外時先保存畫面，再讓測試與 workflow 失敗。
 
-### 敏感資料保護
+## 設定與秘密邊界
 
-1. **Storage State**
-   - 包含 cookies 和 tokens
-   - 加入 .gitignore
-   - 定期清理過期檔案
+必要值只有六個：`BASE_URL`、`COMPANY_CODE`、`AOA_USERNAME`、`AOA_PASSWORD`、`AOA_LAT`、`AOA_LON`。本機由 `.env` 注入，GitHub 由 Repository Secrets 注入。`.dockerignore` 排除 `.env*`（保留範例）、authentication state、截圖與測試產物，這些資料不會成為 image layer。
 
-2. **日誌脫敏**
-   - 不記錄密碼
-   - 遮蔽個人資訊
-   - 結構化日誌格式
-
-3. **Artifacts 安全**
-   - 限制存取權限
-   - 設定保留期限
-   - 加密傳輸
-
-### OWASP 最佳實踐
-
-遵循 OWASP 指南：
-- Secrets Management Cheat Sheet
-- Logging Cheat Sheet
-- Authentication Cheat Sheet
-
-## 可觀測性設計
-
-### 三支柱
-
-#### 1. Metrics（指標）
-- 執行次數
-- 成功率
-- 響應時間
-- 重試次數
-
-#### 2. Logging（日誌）
-```typescript
-logger.info('CheckIn started', {
-  timestamp: new Date().toISOString(),
-  userId: config.username,
-  actionType: 'checkin',
-  environment: process.env.NODE_ENV
-});
-```
-
-#### 3. Tracing（追蹤）
-- Playwright Trace
-- 執行時間線
-- 網路請求
-- DOM 快照
-
-### 監控層級
-
-| 層級 | 監控內容 | 工具 |
-|------|----------|------|
-| 應用層 | 業務邏輯、成功率 | 自訂 metrics |
-| 執行層 | 頁面載入、元素互動 | Playwright metrics |
-| 基礎層 | CPU、記憶體、網路 | 系統監控 |
-
-## 韌性與容錯
-
-### 多層重試策略
-
-```mermaid
-flowchart TD
-  app[應用層重試 ×3] -->|失敗| pw[Playwright 重試 ×2]
-  pw -->|失敗| gha[GitHub Actions 重試 ×3]
-  gha -->|失敗| human[人工介入]
-
-  app -->|成功| done[完成]
-  pw  -->|成功| done
-  gha -->|成功| done
-
-
-```
-
-### 錯誤分類與處理
-
-| 錯誤類型 | 處理策略 | 範例 |
-|----------|----------|------|
-| 暫時性 | 自動重試 | 網路逾時、元素未載入 |
-| 邏輯性 | 記錄並跳過 | 已打卡、非工作日 |
-| 系統性 | 警告並停止 | 登入失敗、頁面改版 |
-| 致命性 | 立即通知 | 帳號鎖定、服務中斷 |
-
-### 降級策略
-
-1. **主要路徑失敗**
-   - 嘗試備用選擇器
-   - 使用替代流程
-   - 回退到手動模式
-
-2. **通知失敗**
-   - 主通道：Discord
-   - 備用通道：LINE
-   - 最終：寫入日誌
-
-3. **瀏覽器失敗**
-   - Chromium → Firefox
-   - Headed → Headless
-   - 本地 → 遠端
-
-### 熔斷機制
-
-```typescript
-class CircuitBreaker {
-  private failures = 0;
-  private readonly threshold = 5;
-  private readonly cooldown = 3600000; // 1 hour
-  
-  async execute(fn: Function) {
-    if (this.failures >= this.threshold) {
-      if (!this.shouldReset()) {
-        throw new Error('Circuit breaker is open');
-      }
-      this.reset();
-    }
-    
-    try {
-      const result = await fn();
-      this.onSuccess();
-      return result;
-    } catch (error) {
-      this.onFailure();
-      throw error;
-    }
-  }
-}
-```
-
-## 效能優化
-
-### 執行優化
-
-1. **Session 復用**
-   - 減少登入次數
-   - 加快執行速度
-   - 降低被偵測風險
-
-2. **智慧等待**
-   - 使用 Playwright auto-waiting
-   - 避免固定 sleep
-   - 條件式等待
-
-3. **資源管理**
-   - 及時釋放瀏覽器
-   - 清理暫存檔案
-   - 控制並發數
-
-### 網路優化
-
-1. **請求優化**
-   - 阻擋不必要資源（圖片、字體）
-   - 快取靜態資源
-   - 壓縮傳輸
-
-2. **重試策略**
-   - 指數退避
-   - 抖動（jitter）
-   - 最大重試限制
-
-## 擴展性設計
-
-### 水平擴展
-
-- 多帳號並行執行
-- 分散式任務佇列
-- 負載均衡
-
-### 垂直擴展
-
-- 增加單機資源
-- 優化演算法
-- 快取策略
-
-### 模組化架構
-
-```mermaid
-flowchart LR
-  subgraph Core_Modules
-    AM[Authentication]
-    NM[Navigation]
-    ACT[Action]
-    VM[Verification]
-    NTM[Notification]
-  end
-
-  subgraph Extension_Points
-    CP[Custom Pages]
-    CA[Custom Actions]
-    CV[Custom Validators]
-    CN[Custom Notifiers]
-  end
-
-  AM -->|extends| CP
-  ACT -->|extends| CA
-  VM -->|extends| CV
-  NTM -->|extends| CN
-
-
-```
-
-## 未來展望
-
-### 短期改進
-
-1. 加入 AI 輔助判斷
-2. 支援更多通知管道
-3. 改善錯誤恢復機制
-
-### 長期規劃
-
-1. 微服務架構
-2. 多租戶支援
-3. 視覺化管理介面
-4. 機器學習優化
-
-## 參考資源
-
-### 官方文檔
-- [Playwright Documentation](https://playwright.dev)
-- [GitHub Actions Documentation](https://docs.github.com/actions)
-- [12-Factor App](https://12factor.net)
-
-### 最佳實踐
-- [OWASP Cheat Sheet Series](https://cheatsheetseries.owasp.org)
-- [Martin Fowler - Page Object](https://martinfowler.com/bliki/PageObject.html)
-- [Google Testing Blog](https://testing.googleblog.com)
-
-### 設計模式
-- [Circuit Breaker Pattern](https://martinfowler.com/bliki/CircuitBreaker.html)
-- [Retry Pattern](https://docs.microsoft.com/azure/architecture/patterns/retry)
-- [Idempotency](https://stripe.com/blog/idempotency)
+通知設定為選用。Smoke job 不接收通知 Secrets，也不呼叫通知 API；Production 只有在結果成功時呼叫成功通知。

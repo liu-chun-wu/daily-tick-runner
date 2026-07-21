@@ -1,598 +1,127 @@
-# 開發指南
+# 開發與測試
 
-本文檔涵蓋專案的開發環境設定、測試撰寫、除錯技巧和最佳實踐。
+## 必要工具
 
-## 📋 目錄
+- Node.js 24+
+- npm（使用 repository 內的 `package-lock.json`）
+- Docker（要驗證正式 image 時）
 
-- [開發環境設定](#開發環境設定)
-- [專案結構](#專案結構)
-- [測試開發](#測試開發)
-- [Playwright CLI 指令](#playwright-cli-指令)
-- [Page Object Model](#page-object-model)
-- [選擇器策略](#選擇器策略)
-- [等待與重試機制](#等待與重試機制)
-- [除錯技巧](#除錯技巧)
-- [最佳實踐](#最佳實踐)
+Playwright package 與 Docker image 必須同為 `1.61.0`。升級時要在 `package.json` 與 `docker/Dockerfile` 同一個 commit 更新，並重新產生 lockfile。
 
-## 開發環境設定
-
-### 前置需求
-
-- Node.js 18+
-- npm 或 yarn
-- Git
-- VS Code (建議)
-
-### 初始設定
+## 本機設定
 
 ```bash
-# Clone 專案
-git clone https://github.com/YOUR_USERNAME/daily-tick-runner.git
-cd daily-tick-runner
-
-# 安裝依賴
-npm install
-
-# 安裝 Playwright 瀏覽器
-npx playwright install chromium
-
-# 設定環境變數
 cp .env.example .env
-# 編輯 .env 填入必要資訊
+npm ci
 ```
 
-### TypeScript 設定
+`.env` 必須提供：
 
-專案使用 TypeScript 提供型別安全：
+```dotenv
+BASE_URL=https://attendance.example.com/
+COMPANY_CODE=your_company_code
+AOA_USERNAME=your_username
+AOA_PASSWORD=your_password
+AOA_LAT=0
+AOA_LON=0
+```
+
+`TZ`、`LOCALE`、`LOG_LEVEL` 可省略，預設依序為 `Asia/Taipei`、`zh-TW`、`INFO`。日誌只接受 `DEBUG`、`INFO`、`WARN`、`ERROR`。
+
+設定在載入 `playwright.config.ts` 時驗證。URL 必須是完整 HTTP/HTTPS URL，緯度需在 -90 到 90，經度需在 -180 到 180；因此錯誤會在開啟瀏覽器與登入前出現。
+
+## 命令
+
+| 命令 | 安全層級 | 用途 |
+| --- | --- | --- |
+| `npm run test:list` | 無外部操作 | 驗證設定與測試載入 |
+| `npm run test:result` | 無外部操作 | 模擬結果與單次 click |
+| `npm test` | 登入，不打卡 | 安全 Smoke |
+| `npm run test:smoke` | 登入，不打卡 | 與 `npm test` 相同 |
+| `npm run smoke:notify` | 登入並發通知，不打卡 | 全部 Smoke 成功後發一則摘要 |
+| `npm run test:setup` | 登入，不打卡 | 只建立 auth state |
+| `npm run notify:test` | 會發送訊息 | 明確測試通知 API |
+| `npm run attendance:checkin` | 會真實簽到 | 一次 click、無自動 retry |
+| `npm run attendance:checkout` | 會真實簽退 | 一次 click、無自動 retry |
+| `npm run test:ui` | 依選取測試而定 | Playwright UI |
+| `npm run test:debug` | 依選取測試而定 | Playwright debug |
+
+不要建立「跑全部 project」的便利命令，因為它很容易意外包含真實打卡或通知。
+
+`smoke:notify` 是明確的手動 opt-in。沒有任何通知設定時會以失敗結束；Smoke 本身失敗、timeout 或被取消時不發送成功摘要。它不應加入 `Build & Smoke Test` workflow。
+
+## 結果判斷測試
+
+`tests/check/attendance-result.spec.ts` 必須涵蓋：
+
+1. `打卡成功` 回傳 `success`。
+2. `打卡失敗` 回傳 `failure`。
+3. 未知 title 拋出例外。
+4. 沒有 alert 時 timeout。
+5. 每個案例的按鈕 click count 都等於 1。
+
+變更正式操作時，先跑：
 
 ```bash
-# 型別檢查
-npx tsc --noEmit
-
-# 監聽模式
-npx tsc --watch --noEmit
+npm run test:result
+npm run test:list
 ```
 
-## 專案結構
+不要在自動測試中執行真實 attendance commands。
 
-```mermaid
-flowchart TB
-%% Stable syntax for GitHub & HackMD
-%% - Use simple alphanumeric IDs
-%% - Give subgraphs explicit IDs with human titles in [brackets]
-%% - Avoid advanced theming/styles for cross-platform stability
+## Docker
 
-  ROOT["daily-tick-runner"]
-
-  subgraph Automation_Core ["Automation Core"]
-    AUTO["automation/"]
-    PAGES["pages/"]
-    NOTIFY_DIR["notify/"]
-    UTILS["utils/"]
-
-    LP["LoginPage.ts"]
-    AP["AttendancePage.ts"]
-
-    DIS["discord.ts"]
-    LINE_FILE["line.ts"]
-    TYPES["types.ts"]
-
-    LOC["location.ts"]
-    LOG["logger.ts"]
-    SS["stableScreenshot.ts"]
-  end
-
-  subgraph Configuration ["Configuration"]
-    CONFIG["config/"]
-    ENV["env.ts"]
-  end
-
-  subgraph Testing ["Testing"]
-    TESTS["tests/"]
-    CHECK["check/"]
-    NOTTEST["notify/"]
-    SETUP["setup/"]
-  end
-
-  PW["playwright.config.ts"]
-
-  %% Top-level links
-  ROOT --> AUTO
-  ROOT --> CONFIG
-  ROOT --> TESTS
-  ROOT --> PW
-
-  %% Automation breakdown
-  AUTO --> PAGES
-  AUTO --> NOTIFY_DIR
-  AUTO --> UTILS
-
-  PAGES --> LP
-  PAGES --> AP
-
-  NOTIFY_DIR --> DIS
-  NOTIFY_DIR --> LINE_FILE
-  NOTIFY_DIR --> TYPES
-
-  UTILS --> LOC
-  UTILS --> LOG
-  UTILS --> SS
-
-  CONFIG --> ENV
-
-  TESTS --> CHECK
-  TESTS --> NOTTEST
-  TESTS --> SETUP
-
-```
-
-<!-- 原始文字目錄結構
-```
-daily-tick-runner/
-├── automation/              # 自動化核心
-│   ├── pages/              # Page Objects
-│   │   ├── LoginPage.ts   # 登入頁面
-│   │   └── AttendancePage.ts # 打卡頁面
-│   ├── notify/             # 通知服務
-│   │   ├── discord.ts     # Discord 整合
-│   │   ├── line.ts        # LINE 整合
-│   │   └── types.ts       # 型別定義
-│   └── utils/              # 工具函式
-│       ├── location.ts    # 位置處理
-│       ├── logger.ts      # 日誌系統
-│       └── stableScreenshot.ts # 截圖工具
-├── config/                 # 設定檔
-│   └── env.ts             # 環境變數管理
-├── tests/                  # 測試檔案
-│   ├── check/             # 打卡測試
-│   ├── notify/            # 通知測試
-│   └── setup/             # 設定測試
-└── playwright.config.ts   # Playwright 設定
-```
--->
-
-## 測試開發
-
-### 測試類型與標籤
-
-| 標籤 | 類型 | 說明 | 使用時機 |
-|------|------|------|----------|
-| `@setup` | 設定測試 | 環境驗證與登入設定 | 初始化 |
-| `@smoke` | Smoke 測試 | UI 元素驗證，不執行實際操作 | 快速驗證 |
-| `@click` | Click 測試 | 實際執行打卡操作 | 生產執行 |
-| `@notify` | 通知測試 | 測試通知發送功能 | 通知驗證 |
-
-### 撰寫測試
-
-```typescript
-import { test, expect } from '@playwright/test';
-import { LoginPage } from '../../automation/pages/LoginPage';
-import { AttendancePage } from '../../automation/pages/AttendancePage';
-
-test('簽到頁可見 @smoke', async ({ page }) => {
-  const loginPage = new LoginPage(page);
-  const attendancePage = new AttendancePage(page);
-  
-  // 使用 Page Object
-  await loginPage.login();
-  await attendancePage.navigateToAttendance();
-  
-  // 驗證元素
-  await expect(attendancePage.checkinButton).toBeVisible();
-});
-
-test('執行簽到 @click', async ({ page }) => {
-  // 跳過 CI 環境
-  test.skip(!!process.env.CI, '只在本地執行');
-  
-  // 實際打卡邏輯
-  await attendancePage.performCheckin();
-});
-```
-
-## Playwright CLI 指令
-
-### 基本執行
+本機安全 Smoke：
 
 ```bash
-# 執行所有測試
-npx playwright test
-
-# 執行特定檔案
-npx playwright test tests/check/checkin.smoke.spec.ts
-
-# 執行特定資料夾
-npx playwright test tests/check/
-
-# 依標籤執行
-npx playwright test --grep "@smoke"
-npx playwright test --grep-invert "@click"  # 排除
-
-# 指定專案
-npx playwright test --project=chromium-smoke
-npx playwright test --project=chromium-click
+docker compose build
+docker compose run --rm smoke
 ```
 
-### 進階選項
+`docker-compose.yml` 透過 `env_file: .env` 注入設定。建置 context 由 `.dockerignore` 排除 Secrets、`playwright/.auth`、`test-results`、`playwright-report` 與 screenshots。
+
+Compose 預設以 `LOCAL_UID=1000`、`LOCAL_GID=1000` 寫入 bind mounts，避免產物在 WSL 變成 `root` 或 `nobody`。若 `id -u`／`id -g` 不是 1000，請在 `.env` 改成實際值。
+
+驗證版本：
 
 ```bash
-# 開啟瀏覽器視窗
-npx playwright test --headed
-
-# 單一 worker (穩定除錯)
-npx playwright test --workers=1
-
-# 開啟追蹤
-npx playwright test --trace on
-
-# 除錯模式
-npx playwright test --debug
-PWDEBUG=1 npx playwright test
-
-# UI 模式
-npx playwright test --ui
-
-# 列出測試但不執行
-npx playwright test --list
-
-# 指定行號執行
-npx playwright test tests/checkin.click.spec.ts:12
+docker build -f docker/Dockerfile -t daily-tick-runner:verify .
+docker run --rm daily-tick-runner:verify node --version
+docker run --rm daily-tick-runner:verify npx playwright --version
 ```
 
-### 報告與追蹤
+`npm ci` 在官方 Playwright image 中設有 `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1`，直接使用 image 內相同版本的 Chromium。
+
+## Pull request 與 CI
+
+Pull request workflow 不會收到 Fork Repository Secrets，所以只能：
+
+- 建置本地、不推送的 image。
+- 以假值載入 Playwright 設定並執行 `test:list`。
+- 不登入目標、不呼叫通知、不寫 GHCR。
+
+`main` push 與手動 dispatch 才會建置 SHA image、執行整合 Smoke，成功後推進 `latest`。修改文件也會觸發完整流程。
+
+提交前建議執行：
 
 ```bash
-# 查看測試報告
-npx playwright show-report
-
-# 查看追蹤檔案
-npx playwright show-trace test-results/**/trace.zip
-
-# 產生程式碼
-npx playwright codegen https://erpline.aoacloud.com.tw/
+npm ci
+npm run test:list
+npm run test:result
 ```
 
-### NPM Scripts
+若有 Docker，另外檢查 image 內容與版本。真實 Smoke 需要授權帳號與可存取的目標環境。
 
-```json
-{
-  "scripts": {
-    "test": "playwright test",
-    "test:setup": "playwright test tests/setup",
-    "test:smoke": "playwright test --grep @smoke",
-    "test:click": "playwright test --grep @click --headed",
-    "test:ui": "playwright test --ui",
-    "test:debug": "PWDEBUG=1 playwright test",
-    "test:all": "npm run test:setup && npm run test:smoke"
-  }
-}
-```
+## 新增測試
 
-## Page Object Model
+- 安全 UI 檢查使用 `@smoke`，不可 click 簽到／簽退或呼叫通知。
+- 真實操作只能使用 `@click` 且 project retries 必須維持 0。
+- 純本機結果測試使用 `@result`。
+- 通知 API 測試使用 `@notify`。
+- 不要在測試檔、fixtures、截圖或 trace 寫入憑證。
 
-### 基本結構
+## 文件治理
 
-```typescript
-// automation/pages/BasePage.ts
-export abstract class BasePage {
-  constructor(protected page: Page) {}
-  
-  abstract navigate(): Promise<void>;
-  
-  protected async waitForLoadComplete() {
-    await this.page.waitForLoadState('networkidle');
-  }
-}
-
-// automation/pages/LoginPage.ts
-export class LoginPage extends BasePage {
-  // 定義選擇器
-  private readonly companyCodeInput = this.page.getByTestId('company-code');
-  private readonly usernameInput = this.page.getByLabel('使用者名稱');
-  private readonly passwordInput = this.page.getByLabel('密碼');
-  private readonly loginButton = this.page.getByRole('button', { name: '登入' });
-  
-  async navigate() {
-    await this.page.goto('/login');
-    await this.waitForLoadComplete();
-  }
-  
-  async login(username?: string, password?: string) {
-    await this.companyCodeInput.fill(process.env.COMPANY_CODE!);
-    await this.usernameInput.fill(username || process.env.AOA_USERNAME!);
-    await this.passwordInput.fill(password || process.env.AOA_PASSWORD!);
-    await this.loginButton.click();
-    
-    // 等待登入完成
-    await this.page.waitForURL('**/dashboard');
-  }
-}
-```
-
-## 選擇器策略
-
-### 優先順序
-
-1. **可存取性選擇器** (最優先)
-   ```typescript
-   page.getByRole('button', { name: '簽到' })
-   page.getByLabel('使用者名稱')
-   page.getByText('確認')
-   ```
-
-2. **Test ID** (推薦)
-   ```typescript
-   page.getByTestId('submit-button')
-   // 需在 playwright.config.ts 設定:
-   // testIdAttribute: 'data-pw'
-   ```
-
-3. **穩定的 CSS 選擇器**
-   ```typescript
-   page.locator('.login-form input[type="email"]')
-   ```
-
-4. **避免使用**
-   - 動態生成的 ID
-   - 複雜的 XPath
-   - 基於索引的選擇器
-
-### 最佳實踐
-
-```typescript
-// ✅ 好的做法
-const submitButton = page.getByRole('button', { name: '提交' });
-const emailInput = page.getByLabel('電子郵件');
-const mainHeading = page.getByRole('heading', { level: 1 });
-
-// ❌ 避免的做法
-const submitButton = page.locator('div > form > button:nth-child(3)');
-const emailInput = page.locator('#input_1234567890');
-const mainHeading = page.locator('//h1[contains(@class, "title")]');
-```
-
-## 等待與重試機制
-
-### Playwright 自動等待
-
-Playwright 內建 auto-waiting，會自動等待元素：
-- 出現在 DOM
-- 可見
-- 穩定（停止移動）
-- 可互動（未被遮擋）
-
-```typescript
-// 自動等待元素可點擊
-await page.getByRole('button').click();
-
-// 自動重試直到條件滿足
-await expect(page.getByText('成功')).toBeVisible();
-```
-
-### 自訂等待
-
-```typescript
-// 等待特定條件
-await page.waitForSelector('.loading', { state: 'hidden' });
-await page.waitForURL('**/dashboard');
-await page.waitForLoadState('networkidle');
-
-// 等待函式回傳 true
-await page.waitForFunction(() => document.readyState === 'complete');
-```
-
-### 重試配置
-
-```typescript
-// playwright.config.ts
-export default defineConfig({
-  // 測試層級重試
-  retries: process.env.CI ? 2 : 1,
-  
-  use: {
-    // 動作超時
-    actionTimeout: 10000,
-    // 導航超時
-    navigationTimeout: 30000,
-  },
-  
-  expect: {
-    // 斷言超時
-    timeout: 5000,
-  },
-});
-```
-
-### 避免固定延遲
-
-```typescript
-// ❌ 避免
-await page.waitForTimeout(5000);
-
-// ✅ 改用條件等待
-await page.waitForSelector('.content', { state: 'visible' });
-await expect(page.locator('.spinner')).toBeHidden();
-```
-
-## 除錯技巧
-
-### 1. 使用 Debug 模式
-
-```bash
-# Playwright Inspector
-npx playwright test --debug
-
-# 環境變數方式
-PWDEBUG=1 npx playwright test
-```
-
-### 2. 開啟 Headed 模式
-
-```bash
-npx playwright test --headed --workers=1
-```
-
-### 3. 使用 page.pause()
-
-```typescript
-test('除錯測試', async ({ page }) => {
-  await page.goto('/');
-  await page.pause(); // 暫停執行
-  await page.click('button');
-});
-```
-
-### 4. 截圖與追蹤
-
-```typescript
-// 手動截圖
-await page.screenshot({ path: 'debug.png', fullPage: true });
-
-// 設定追蹤
-await context.tracing.start({ screenshots: true, snapshots: true });
-// ... 測試邏輯
-await context.tracing.stop({ path: 'trace.zip' });
-```
-
-### 5. 詳細日誌
-
-```typescript
-// 啟用詳細日誌
-DEBUG=pw:api npx playwright test
-
-// 自訂日誌
-console.log('Current URL:', page.url());
-console.log('Page title:', await page.title());
-```
-
-### 6. VS Code 整合
-
-安裝 Playwright Test for VSCode 擴充套件：
-- 在編輯器中執行測試
-- 設定中斷點
-- 查看測試結果
-
-## 最佳實踐
-
-### 1. 測試隔離
-
-每個測試應該獨立，不依賴其他測試的狀態：
-
-```typescript
-test.beforeEach(async ({ page }) => {
-  // 每個測試前重置狀態
-  await page.goto('/');
-});
-```
-
-### 2. 使用 Fixtures
-
-```typescript
-// fixtures/auth.ts
-export const test = base.extend({
-  authenticatedPage: async ({ page }, use) => {
-    await loginAsUser(page);
-    await use(page);
-  },
-});
-```
-
-### 3. 環境變數管理
-
-```typescript
-// config/env.ts
-export const config = {
-  baseUrl: process.env.BASE_URL || 'http://localhost:3000',
-  username: process.env.AOA_USERNAME!,
-  password: process.env.AOA_PASSWORD!,
-};
-
-// 使用時驗證
-if (!config.username || !config.password) {
-  throw new Error('Missing required environment variables');
-}
-```
-
-### 4. 錯誤處理
-
-```typescript
-test('處理錯誤', async ({ page }) => {
-  try {
-    await page.goto('/protected');
-  } catch (error) {
-    // 記錄錯誤但繼續測試
-    console.error('Navigation failed:', error);
-    await page.screenshot({ path: 'error.png' });
-  }
-});
-```
-
-### 5. 效能優化
-
-```typescript
-// 重用認證狀態
-test.use({ storageState: 'playwright/.auth/user.json' });
-
-// 平行執行
-test.describe.parallel('平行測試組', () => {
-  test('測試 1', async ({ page }) => {});
-  test('測試 2', async ({ page }) => {});
-});
-```
-
-### 6. 資料驅動測試
-
-```typescript
-const testData = [
-  { username: 'user1', expected: 'Welcome User 1' },
-  { username: 'user2', expected: 'Welcome User 2' },
-];
-
-testData.forEach(({ username, expected }) => {
-  test(`登入測試 - ${username}`, async ({ page }) => {
-    await loginAs(page, username);
-    await expect(page.getByText(expected)).toBeVisible();
-  });
-});
-```
-
-## 持續改進
-
-### 監控測試穩定性
-
-1. 追蹤測試失敗率
-2. 分析 flaky tests
-3. 優化選擇器和等待策略
-
-### 更新相依套件
-
-```bash
-# 檢查過時套件
-npm outdated
-
-# 更新 Playwright
-npm update @playwright/test
-
-# 更新瀏覽器
-npx playwright install
-```
-
-### 程式碼品質
-
-```bash
-# ESLint
-npm run lint
-
-# Prettier
-npm run format
-
-# TypeScript 檢查
-npm run type-check
-```
-
-## 相關文件
-
-- [架構設計](./ARCHITECTURE.md) - 系統架構與設計原則
-- [部署指南](./DEPLOYMENT.md) - GitHub Actions 部署
-- [本地排程器](./LOCAL-SCHEDULER.md) - macOS 本地排程設定
-- [Playwright 官方文檔](https://playwright.dev)
+- 部署行為只在 [DEPLOYMENT.md](DEPLOYMENT.md) 維護。
+- [ARCHITECTURE.md](ARCHITECTURE.md) 只描述已實作元件。
+- 工作流程、命令或 Secret 名稱變動時，同步 README、本文件、Security、Troubleshooting 與 `CLAUDE.md`。

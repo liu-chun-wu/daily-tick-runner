@@ -1,133 +1,187 @@
-# .github/workflows/ci.yml
-name: CI
+name: Build & Smoke Test
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
-    branches: [ main ]
+    branches:
+      - main
+
+permissions:
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true  # 新的跑起來會取消舊的
+  cancel-in-progress: true
 
 jobs:
-  test:
+  pull-request-check:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    container: ghcr.io/liu-chun-wu/daily-tick-runner/runner:latest  # 使用自有映像（含中文字型）
     timeout-minutes: 20
-
     steps:
-      - name: 📥 Checkout repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: 📦 Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: 'npm'                    # 需有 package-lock.json / yarn.lock 才會生效
-          cache-dependency-path: 'package-lock.json'
-
-      - name: 🔧 Install dependencies
-        run: npm ci
-
-      - name: 🔍 Lint (optional)
-        run: npm run lint --if-present
-
-      # Playwright 瀏覽器和中文字型已在容器中預裝，無需再安裝
-
-      - name: 🔐 Setup and login
-        env:
-          BASE_URL: ${{ vars.BASE_URL || 'https://erpline.aoacloud.com.tw/' }}
-          COMPANY_CODE: ${{ vars.COMPANY_CODE || 'CYBERBIZ' }}
-          AOA_USERNAME: ${{ secrets.AOA_USERNAME }}
-          AOA_PASSWORD: ${{ secrets.AOA_PASSWORD }}
-          AOA_LAT: ${{ vars.AOA_LAT || '25.080869' }}
-          AOA_LON: ${{ vars.AOA_LON || '121.569862' }}
-          TZ: ${{ vars.TZ || 'Asia/Taipei' }}
-          LOCALE: ${{ vars.LOCALE || 'zh-TW' }}
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
-          LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
-          LOG_LEVEL: ${{ vars.LOG_LEVEL || 'INFO' }}
+      - name: Build pull request image without publishing
         run: |
-          echo "🔍 開始環境檢查和登入設置..."
-          npx playwright test --project=setup --workers=1
+          docker build \
+            --build-arg SOURCE_URL="https://github.com/${{ github.repository }}" \
+            --tag daily-tick-runner:pr \
+            --file docker/Dockerfile \
+            .
 
-      - name: 📢 Run notify tests (with retry)
-        uses: nick-fields/retry@v3
-        with:
-          timeout_minutes: 15
-          max_attempts: 3
-          retry_wait_seconds: 60
-          retry_on: error
-          command: |
-            echo "📢 開始執行通知測試..."
-            echo "⏰ 執行時間: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
-            npx playwright test --project=notify --workers=1 --trace on
-        env:
-          BASE_URL: ${{ vars.BASE_URL || 'https://erpline.aoacloud.com.tw/' }}
-          COMPANY_CODE: ${{ vars.COMPANY_CODE || 'CYBERBIZ' }}
-          AOA_USERNAME: ${{ secrets.AOA_USERNAME }}
-          AOA_PASSWORD: ${{ secrets.AOA_PASSWORD }}
-          AOA_LAT: ${{ vars.AOA_LAT || '25.080869' }}
-          AOA_LON: ${{ vars.AOA_LON || '121.569862' }}
-          TZ: ${{ vars.TZ || 'Asia/Taipei' }}
-          LOCALE: ${{ vars.LOCALE || 'zh-TW' }}
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
-          LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
-          LOG_LEVEL: ${{ vars.LOG_LEVEL || 'INFO' }}
-      
-      - name: 🎯 Run chromium-smoke tests (with retry)
-        uses: nick-fields/retry@v3
-        with:
-          timeout_minutes: 15
-          max_attempts: 3
-          retry_wait_seconds: 60
-          retry_on: error
-          command: |
-            echo "🎯 開始執行 smoke 測試..."
-            echo "⏰ 執行時間: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
-            npx playwright test --project=chromium-smoke --workers=1 --trace on
-        env:
-          BASE_URL: ${{ vars.BASE_URL || 'https://erpline.aoacloud.com.tw/' }}
-          COMPANY_CODE: ${{ vars.COMPANY_CODE || 'CYBERBIZ' }}
-          AOA_USERNAME: ${{ secrets.AOA_USERNAME }}
-          AOA_PASSWORD: ${{ secrets.AOA_PASSWORD }}
-          AOA_LAT: ${{ vars.AOA_LAT || '25.080869' }}
-          AOA_LON: ${{ vars.AOA_LON || '121.569862' }}
-          TZ: ${{ vars.TZ || 'Asia/Taipei' }}
-          LOCALE: ${{ vars.LOCALE || 'zh-TW' }}
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
-          LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
-          LOG_LEVEL: ${{ vars.LOG_LEVEL || 'INFO' }}
+      - name: Load Playwright configuration without external access
+        run: |
+          docker run --rm \
+            -e BASE_URL=https://example.invalid/ \
+            -e COMPANY_CODE=example \
+            -e AOA_USERNAME=example \
+            -e AOA_PASSWORD=example \
+            -e AOA_LAT=0 \
+            -e AOA_LON=0 \
+            daily-tick-runner:pr npm run test:list
 
-      - name: 📤 Upload test results (if failed)
-        uses: actions/upload-artifact@v4
+  build-candidate:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.image.outputs.name }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Resolve Fork-owned image name
+        id: image
+        shell: bash
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}/runner"
+          echo "name=${image}" >> "$GITHUB_OUTPUT"
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and publish candidate SHA image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          build-args: |
+            SOURCE_URL=https://github.com/${{ github.repository }}
+          push: true
+          tags: ${{ steps.image.outputs.name }}:sha-${{ github.sha }}
+          provenance: false
+
+  smoke:
+    if: github.event_name != 'pull_request'
+    needs: build-candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      packages: read
+    env:
+      IMAGE: ${{ needs.build-candidate.outputs.image }}:sha-${{ github.sha }}
+      BASE_URL: ${{ secrets.BASE_URL }}
+      COMPANY_CODE: ${{ secrets.COMPANY_CODE }}
+      AOA_USERNAME: ${{ secrets.AOA_USERNAME }}
+      AOA_PASSWORD: ${{ secrets.AOA_PASSWORD }}
+      AOA_LAT: ${{ secrets.AOA_LAT }}
+      AOA_LON: ${{ secrets.AOA_LON }}
+      TZ: Asia/Taipei
+      LOCALE: zh-TW
+      LOG_LEVEL: INFO
+    steps:
+      - name: Check required Secrets
+        shell: bash
+        run: |
+          missing=()
+          for name in BASE_URL COMPANY_CODE AOA_USERNAME AOA_PASSWORD AOA_LAT AOA_LON; do
+            if [ -z "${!name:-}" ]; then
+              missing+=("$name")
+            fi
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "::error::Missing Repository Secrets: ${missing[*]}"
+            exit 1
+          fi
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Pull exact candidate image
+        run: docker pull "$IMAGE"
+
+      - name: Validate candidate image and result handling
+        run: |
+          docker run --rm --ipc=host \
+            -e BASE_URL -e COMPANY_CODE -e AOA_USERNAME -e AOA_PASSWORD \
+            -e AOA_LAT -e AOA_LON -e TZ -e LOCALE -e LOG_LEVEL \
+            "$IMAGE" npm run test:list
+          docker run --rm --ipc=host \
+            -e BASE_URL -e COMPANY_CODE -e AOA_USERNAME -e AOA_PASSWORD \
+            -e AOA_LAT -e AOA_LON -e TZ -e LOCALE -e LOG_LEVEL \
+            "$IMAGE" npm run test:result
+
+      - name: Run login and safe Smoke with candidate image
+        run: |
+          mkdir -p test-results playwright-report
+          docker run --rm --ipc=host \
+            -e BASE_URL -e COMPANY_CODE -e AOA_USERNAME -e AOA_PASSWORD \
+            -e AOA_LAT -e AOA_LON -e TZ -e LOCALE -e LOG_LEVEL \
+            -v "$GITHUB_WORKSPACE/test-results:/app/test-results" \
+            -v "$GITHUB_WORKSPACE/playwright-report:/app/playwright-report" \
+            "$IMAGE" npm run test:smoke
+
+      - name: Upload failed Smoke evidence
         if: failure()
+        uses: actions/upload-artifact@v4
         with:
-          name: test-results-${{ github.run_number }}
+          name: smoke-results-${{ github.run_number }}
           path: |
             test-results/
             playwright-report/
+          if-no-files-found: ignore
           retention-days: 7
 
-      - name: 📊 Upload traces (if failed)
-        uses: actions/upload-artifact@v4
-        if: failure()
+  promote-latest:
+    if: github.event_name != 'pull_request'
+    needs:
+      - build-candidate
+      - smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ${{ needs.build-candidate.outputs.image }}
+      CANDIDATE: ${{ needs.build-candidate.outputs.image }}:sha-${{ github.sha }}
+    steps:
+      - name: Login to GHCR
+        uses: docker/login-action@v3
         with:
-          name: traces-${{ github.run_number }}
-          path: test-results/**/*.zip
-          retention-days: 3
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
 
-      - name: 🚨 Notify on failure
-        if: failure()
-        env:
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      - name: Promote tested candidate to latest
         run: |
-          if [ -n "$DISCORD_WEBHOOK_URL" ]; then
-            curl -H "Content-Type: application/json" \
-                 -d "{\"content\":\"❌ **CI 測試失敗**\n🔗 查看詳情: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" \
-                 "$DISCORD_WEBHOOK_URL" || echo "Discord 通知發送失敗"
-          fi
+          docker pull "$CANDIDATE"
+          docker tag "$CANDIDATE" "$IMAGE:latest"
+          docker push "$IMAGE:latest"

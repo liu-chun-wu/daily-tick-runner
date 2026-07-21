@@ -1,5 +1,11 @@
 import { Page, expect } from '@playwright/test';
 
+export type AttendanceResult =
+    | { status: 'success'; title: '打卡成功'; detail?: string }
+    | { status: 'failure'; title: '打卡失敗'; detail?: string };
+
+export type AttendanceAction = 'checkin' | 'checkout';
+
 export class AttendancePage {
     constructor(private page: Page) { }
 
@@ -26,30 +32,46 @@ export class AttendancePage {
         await expect(this.page.getByRole('button', { name: '簽退' })).toBeVisible({ timeout: 15000 });
     }
 
-    async checkIn() {
-        // 確保按鈕可以點擊
-        const checkInButton = this.page.getByRole('button', { name: '簽到' });
-        await expect(checkInButton).toBeEnabled({ timeout: 10000 });
-        
-        // 等待一下確保頁面穩定
-        await this.page.waitForTimeout(500);
-        
-        await checkInButton.click();
-        
-        // 煙霧層級：至少確認按鈕仍可互動（避免 click 被遮罩）。
-        await expect(this.page.getByRole('button', { name: '簽到' })).toBeVisible();
+    async checkIn(resultTimeout = 15000): Promise<AttendanceResult> {
+        return this.performAttendance('checkin', resultTimeout);
     }
 
-    async checkOut() {
-        // 確保按鈕可以點擊
-        const checkOutButton = this.page.getByRole('button', { name: '簽退' });
-        await expect(checkOutButton).toBeEnabled({ timeout: 10000 });
-        
-        // 等待一下確保頁面穩定
-        await this.page.waitForTimeout(500);
-        
-        await checkOutButton.click();
-        
-        await expect(this.page.getByRole('button', { name: '簽退' })).toBeVisible();
+    async checkOut(resultTimeout = 15000): Promise<AttendanceResult> {
+        return this.performAttendance('checkout', resultTimeout);
+    }
+
+    private async performAttendance(action: AttendanceAction, resultTimeout: number): Promise<AttendanceResult> {
+        const buttonName = action === 'checkin' ? '簽到' : '簽退';
+        const button = this.page.getByRole('button', { name: buttonName, exact: true });
+        await expect(button).toBeEnabled({ timeout: 10000 });
+
+        // 真實操作的唯一 click。結果失敗或逾時時，呼叫端不得自動重試。
+        await button.click();
+
+        const alert = this.page.locator('.alert-wrapper');
+        const titleLocator = this.page.locator('.alert-title');
+        const deadline = Date.now() + resultTimeout;
+        try {
+            await alert.waitFor({ state: 'visible', timeout: resultTimeout });
+            const remaining = Math.max(deadline - Date.now(), 1);
+            await expect(titleLocator).not.toHaveText(/^\s*$/, { timeout: remaining });
+        } catch {
+            throw new Error(`Attendance result did not appear within ${resultTimeout}ms`);
+        }
+
+        const title = (await titleLocator.textContent())?.trim() || '';
+        const detailLocator = this.page.locator('.alert-sub-title');
+        const detail = await detailLocator.count()
+            ? (await detailLocator.textContent())?.trim() || undefined
+            : undefined;
+
+        if (title === '打卡成功') {
+            return { status: 'success', title, detail };
+        }
+        if (title === '打卡失敗') {
+            return { status: 'failure', title, detail };
+        }
+
+        throw new Error(`Unexpected attendance result title: ${title || '(empty)'}`);
     }
 }

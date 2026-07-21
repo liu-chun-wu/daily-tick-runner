@@ -1,203 +1,117 @@
-# GitHub Actions 部署指南
+# 部署與 Fork 初始化
 
-本專案使用 GitHub Actions 實現完整的 CI/CD 流程，包含持續整合測試、自動打卡排程，以及容器化部署。
+本文件是 Daily Tick Runner 唯一的部署來源。專案只支援 GitHub Actions；不提供本機、macOS 或主機排程器。
 
-## 🚀 部署步驟
+## 1. Fork 與啟用 Actions
 
-### 1. Repository Secrets 設定
+1. 在 GitHub Fork repository。
+2. 開啟 Fork 的 **Actions** 頁並同意啟用 workflows。
+3. 確認 Fork 的預設分支是 `main`。
+4. 尚未建立 `runner:latest` 前，不要執行 `Production Attendance`。
 
-進入 GitHub 專案的 `Settings` > `Secrets and variables` > `Actions`，設定以下 **Secrets**：
+Fork 本身不保證會觸發初次建置，因此初始化必須手動執行 `Build & Smoke Test`。
 
-| 名稱 | 說明 | 範例 |
-|------|------|------|
-| `AOA_USERNAME` | AOA 系統使用者名稱 | `your_username` |
-| `AOA_PASSWORD` | AOA 系統密碼 | `your_password` |
-| `DISCORD_WEBHOOK_URL` | Discord Webhook URL（可選） | `https://discord.com/api/webhooks/...` |
-| `LINE_CHANNEL_ACCESS_TOKEN` | LINE Messaging API Token（可選） | `YOUR_CHANNEL_ACCESS_TOKEN` |
-| `LINE_USER_ID` | LINE 使用者 ID（可選） | `U1234567890abcdef...` |
+## 2. 設定 Repository Secrets
 
-### 2. Repository Variables 設定
+到 **Settings → Secrets and variables → Actions → Repository secrets** 建立：
 
-在 `Variables` 頁籤設定以下環境變數：
+| 名稱 | 必填 | 驗證 |
+| --- | --- | --- |
+| `BASE_URL` | 是 | 完整的 HTTP/HTTPS URL |
+| `COMPANY_CODE` | 是 | 不可空白 |
+| `AOA_USERNAME` | 是 | 不可空白 |
+| `AOA_PASSWORD` | 是 | 不可空白 |
+| `AOA_LAT` | 是 | -90 到 90 |
+| `AOA_LON` | 是 | -180 到 180 |
+| `DISCORD_WEBHOOK_URL` | 否 | Discord webhook URL |
+| `LINE_CHANNEL_ACCESS_TOKEN` | 否 | LINE token |
+| `LINE_USER_ID` | 否 | LINE user ID |
 
-| 名稱 | 說明 | 預設值 | 範例 |
-|------|------|--------|------|
-| `BASE_URL` | AOA 系統網址 | `https://erpline.aoacloud.com.tw/` | `https://erpline.aoacloud.com.tw/` |
-| `COMPANY_CODE` | 公司代碼 | 無 | `your_company_code` |
-| `AOA_LAT` | 打卡地點緯度 | `25.0330` | `25.0330` |
-| `AOA_LON` | 打卡地點經度 | `121.5654` | `121.5654` |
-| `TZ` | 時區設定 | `Asia/Taipei` | `Asia/Taipei` |
-| `LOCALE` | 語系設定 | `zh-TW` | `zh-TW` |
+所有目標相關設定都必須是 Secrets，不使用 GitHub Variables，也沒有真實網址、公司或座標 fallback。
 
-## 🔄 CI/CD Workflows
+## 3. 初始化與 image 生命週期
 
-### 持續整合 (ci.yml)
+在 **Actions → Build & Smoke Test → Run workflow** 執行：
 
-- **觸發條件**：Pull Request 和推送到 main 分支
-- **執行環境**：自有容器映像 `ghcr.io/liu-chun-wu/daily-tick-runner/runner:latest`
-- **測試流程**：
-  1. 環境設置與登入 (setup project)
-  2. 通知功能測試 (notify project)
-  3. Smoke 測試 (chromium-smoke project)
-- **特色功能**：
-  - 自動重試機制（每個測試最多 3 次）
-  - 失敗時自動上傳測試報告和 traces
-  - Discord 失敗通知
-  - 使用預裝中文字型的容器確保測試穩定
+1. workflow 由 `github.repository` 轉成小寫，得到 `ghcr.io/<fork-owner>/<repo>/runner`。
+2. 使用目前 commit 建置並推送 `runner:sha-<commit>`。
+3. 拉回該 SHA image，先執行 `test:list` 與本機結果判斷測試。
+4. 使用同一 image 登入目標並執行安全 Smoke；不點打卡按鈕、不發通知。
+5. 全部通過後，才將該 image 追加 `runner:latest` tag。
 
-### 容器映像建置 (build-image.yml)
+GHCR 的 push 與 pull 使用 workflow 內建的 `GITHUB_TOKEN`，同一 Fork 不需要 PAT。Docker image 的 OCI source label 會連結回該 Fork，方便 GitHub Packages 套用 repository 權限。
 
-- **功能**：建置並推送容器映像到 GitHub Container Registry
-- **映像位置**：`ghcr.io/liu-chun-wu/daily-tick-runner/runner:latest`
-- **包含內容**：
-  - Playwright v1.49.0 及瀏覽器
-  - 中文字型支援 (fonts-noto-cjk)
-  - 時區設定 (Asia/Taipei)
-  - 所有專案依賴
+### 取消與失敗
 
-## 🔄 排程模式
+- 候選 SHA image 可能已存在，便於稽核或除錯。
+- Smoke 失敗、Secret 缺少或 workflow 被取消時，promotion job 不會執行。
+- 已存在的 `latest` 保持不變，因此正式流程不會自動改用未測試版本。
+- 使用者手動取消的 run 屬於取消，不代表 workflow trigger 異常。
 
-### 測試排程（test-schedule.yml）
+`main` 的每次 push 都會執行，包含只有 Markdown 或文件變更的 commit；沒有 paths 排除。Pull request 只建置不發佈的 image 並載入測試設定，因為 Fork PR 不會取得 Repository Secrets。
 
-- **執行頻率**：預設關閉（可手動觸發）
-- **執行環境**：自有容器映像
-- **功能**：測試真實打卡操作
-- **手動觸發參數**：
-  - `test_type`：smoke（不點擊）或 click（真實點擊）
-  - `action_type`：checkin（簽到）或 checkout（簽退）
-  - `log_level`：DEBUG/INFO/WARN/ERROR
-- **用途**：測試自動化流程是否正常
+## 4. 手動執行正式打卡
 
-**注意**：選擇 click 模式會進行真實打卡！
+1. 確認最新一次 `Build & Smoke Test` 成功。
+2. 開啟 **Actions → Production Attendance → Run workflow**。
+3. 選擇 `checkin` 或 `checkout`，並選擇日誌等級。
+4. 確認 run 結果與 artifacts；有設定通知時，成功後才發送成功通知。
 
-### 正式排程（production-schedule.yml）
+正式 workflow 不 checkout、不執行 `npm ci`，而是拉取 Fork 自己最後通過測試的 `runner:latest`。
 
-- **執行時間**：
-  - 簽到：週一至週五 08:30 (台北時間)
-  - 簽退：週一至週五 17:30 (台北時間)
-- **功能**：智慧判斷打卡時機
-- **狀態**：預設停用
+真實按鈕只 click 一次：
 
-## ⚙️ 啟用正式排程
+| 畫面結果 | 行為 |
+| --- | --- |
+| `打卡成功` | 回傳成功、保存截圖、發送已設定的成功通知 |
+| `打卡失敗` | 保存錯誤文字與截圖，workflow 失敗，不重按 |
+| 15 秒內沒有結果 | 保存證據並拋出 timeout，不重按 |
+| 未知 alert 標題 | 保存證據並失敗，不重按 |
 
-1. **停用測試排程**：
-   ```yaml
-   # 在 .github/workflows/test-schedule.yml 中註解掉 schedule
-   on:
-     # schedule:
-     #   - cron: '*/5 * * * *'
-   ```
+要重新執行真實打卡，必須由使用者評估後再次手動啟動 workflow。
 
-2. **啟用正式排程**：
-   ```yaml
-   # 在 .github/workflows/production-schedule.yml 中啟用 schedule
-   on:
-     schedule:
-       # 週一到週五 早上 8:30 (UTC 23:30)
-       - cron: '30 23 * * 1-5'
-       # 週一到週五 下午 17:30 (UTC 08:30)  
-       - cron: '30 8 * * 1-5'
-   ```
+## 5. 啟用選用排程
 
-## 🎯 手動執行
+排程預設停用。編輯 [production-schedule.yml](.github/workflows/production-schedule.yml)：
 
-兩個 workflow 都支援手動觸發：
+1. 將兩個 placeholder 改為五欄 cron，例如自己的上班與下班規則：
 
-### 測試排程手動執行
-- 進入 `Actions` > `測試排程 - 自動打卡`
-- 點選 `Run workflow`
-- 可選擇日誌等級（DEBUG/INFO/WARN/ERROR）
-
-### 正式排程手動執行  
-- 進入 `Actions` > `正式排程 - 自動打卡`
-- 點選 `Run workflow`
-- 選擇執行類型：
-  - `checkin`：僅執行簽到
-  - `checkout`：僅執行簽退  
-  - `both`：執行簽到+簽退（間隔30秒）
-
-## 📊 監控與除錯
-
-### 執行結果通知
-
-成功或失敗時會透過 Discord 發送通知（如果有設定 `DISCORD_WEBHOOK_URL`）：
-
-- ✅ **成功通知**：顯示執行時間和類型
-- ❌ **失敗通知**：包含 GitHub Actions 執行連結
-
-### 查看執行記錄
-
-1. 進入 GitHub 專案的 `Actions` 頁籤
-2. 選擇對應的 workflow
-3. 點選具體的執行記錄查看詳細日誌
-
-### 下載執行結果（失敗時）
-
-失敗時會自動上傳以下檔案：
-- `test-results/`：測試結果和截圖
-- `playwright-report/`：Playwright 報告
-- `traces/`：執行軌跡檔案（可用 Playwright Trace Viewer 查看）
-
-保存期限：
-- 測試結果：7 天
-- 軌跡檔案：3 天
-
-## 🛠️ 本地測試
-
-在部署到 GitHub Actions 前，建議先在本機測試：
-
-```bash
-# 安裝相依套件
-npm install
-
-# 執行登入設置
-npm run test:setup
-
-# 測試簽到（不會真的打卡）
-npm run test:smoke
-
-# 真實打卡測試（會真的打卡！）
-npm run test:click
+```yaml
+env:
+  CHECKIN_CRON: &checkin_cron 'YOUR_CHECKIN_CRON'
+  CHECKOUT_CRON: &checkout_cron 'YOUR_CHECKOUT_CRON'
 ```
 
-## ⚠️ 注意事項
+2. 取消下列區塊註解：
 
-1. **測試排程會進行真實打卡**，請在適當時間進行測試
-2. **Secrets 設定錯誤會導致執行失敗**，請仔細檢查拼字和內容
-3. **時區設定很重要**，確保 `TZ` 設定為 `Asia/Taipei`
-4. **地理位置**：`AOA_LAT` 和 `AOA_LON` 需要符合公司打卡地點要求
-5. **通知設定為可選**，沒有設定 Discord/LINE 不會影響打卡功能
+```yaml
+schedule:
+  - cron: *checkin_cron
+    timezone: Asia/Taipei
+  - cron: *checkout_cron
+    timezone: Asia/Taipei
+```
 
-## 🔧 故障排除
+3. Push 到預設分支。此 push 也會完整建置、Smoke 並在成功後更新 `latest`。
 
-### 常見問題
+workflow 會將觸發它的 cron expression 與兩個 anchor 值精確比對，因此不依執行當下的時鐘猜測簽到或簽退。兩個 cron 不可相同。
 
-**Q: 執行失敗，顯示登入錯誤**
-- 檢查 `AOA_USERNAME` 和 `AOA_PASSWORD` 是否正確
-- 確認 `COMPANY_CODE` 是否填寫正確
+GitHub Actions schedule 只會從預設分支執行。即使使用 `timezone: Asia/Taipei`，排程仍可能因平台負載延遲；GitHub 也說明高負載時排隊工作可能被丟棄。請避開整點，且不要把此方案當成硬即時排程。
 
-**Q: 地理位置驗證失敗**  
-- 檢查 `AOA_LAT` 和 `AOA_LON` 座標是否正確
-- 確認座標格式為小數點格式（如 `25.0330`）
+## 6. 權限與驗收
 
-**Q: 通知沒有收到**
-- 檢查 `DISCORD_WEBHOOK_URL` 是否有效
-- 確認 LINE Token 和 User ID 設定正確
+Workflows 使用最小權限：
 
-**Q: 時間不對**
-- 確認 `TZ` 設定為 `Asia/Taipei`
-- GitHub Actions 使用 UTC 時間，workflow 會自動轉換
+- Build job：`contents: read`、`packages: write`
+- Smoke job：`contents: read`、`packages: read`
+- Production：`contents: read`、`packages: read`
 
-### 除錯步驟
+Fork 初始化驗收：
 
-1. 手動執行 workflow，選擇 `DEBUG` 日誌等級
-2. 查看詳細執行日誌
-3. 下載失敗時的截圖和軌跡檔案
-4. 使用 `playwright show-trace test-results/**/*.zip` 分析執行過程
+- `Build & Smoke Test` 有 `sha-<commit>` tag。
+- Smoke 成功後 `latest` 指向相同 digest。
+- 手動取消或製造安全的 Smoke 失敗時，原 `latest` digest 不變。
+- `Production Attendance` 顯示拉取的是 Fork 自己的 GHCR 路徑。
+- schedule 保持註解，直到自行填入 cron。
 
-## 📈 效能調整
-
-- **timeout-minutes**：測試排程 10 分鐘，正式排程 15 分鐘
-- **workers**：設定為 1 避免並行衝突
-- **trace**：設定為 `on` 記錄執行軌跡便於除錯
-- **retention-days**：測試結果保存 7 天，軌跡檔案 3 天
+參考：[GitHub Packages workflow authentication](https://docs.github.com/en/packages/managing-github-packages-using-github-actions-workflows/publishing-and-installing-a-package-with-github-actions)、[Secrets 限制](https://docs.github.com/en/code-security/reference/secret-security/secret-types)、[schedule 行為](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule)。

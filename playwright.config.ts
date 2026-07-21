@@ -4,7 +4,7 @@ import { env } from './config/env';
 export default defineConfig({
     testDir: './tests',
     
-    // 重試設定：CI 環境重試更多次
+    // 真實操作 project 會覆寫為 0；只有安全測試可重試。
     retries: process.env.CI ? 2 : 1,
     
     // 超時設定：給網路不穩更多時間
@@ -48,6 +48,15 @@ export default defineConfig({
             use: { ...devices['Desktop Chrome'], storageState: 'playwright/.auth/state.json' },
             dependencies: ['setup'],
             grep: /@click/,
+            retries: 0,
+        },
+
+        // 完全本機、無網路副作用的結果判斷測試。
+        {
+            name: 'result',
+            grep: /@result/,
+            use: { ...devices['Desktop Chrome'], storageState: undefined },
+            retries: 0,
         },
 
         // 傳送通知（Discord/LINE）
