@@ -1,0 +1,152 @@
+name: Smoke Latest Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      send_smoke_notification:
+        description: Send a success summary and screenshot to configured Discord/LINE channels
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: smoke-latest-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke-latest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      BASE_URL: ${{ secrets.BASE_URL }}
+      COMPANY_CODE: ${{ secrets.COMPANY_CODE }}
+      AOA_USERNAME: ${{ secrets.AOA_USERNAME }}
+      AOA_PASSWORD: ${{ secrets.AOA_PASSWORD }}
+      AOA_LAT: ${{ secrets.AOA_LAT }}
+      AOA_LON: ${{ secrets.AOA_LON }}
+      TZ: Asia/Taipei
+      LOCALE: zh-TW
+      LOG_LEVEL: INFO
+    steps:
+      - name: Check required Secrets
+        shell: bash
+        run: |
+          missing=()
+          for name in BASE_URL COMPANY_CODE AOA_USERNAME AOA_PASSWORD AOA_LAT AOA_LON; do
+            if [ -z "${!name:-}" ]; then
+              missing+=("$name")
+            fi
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "::error::Missing Repository Secrets: ${missing[*]}"
+            exit 1
+          fi
+
+      - name: Login to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Pull latest image and pin its digest
+        id: image
+        shell: bash
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}/runner:latest"
+          if ! docker pull "$image"; then
+            echo "::error::Unable to pull $image. Run 'Build & Promote Image' once to initialize or update it."
+            exit 1
+          fi
+
+          reference="$(docker image inspect "$image" --format '{{index .RepoDigests 0}}')"
+          if [ -z "$reference" ]; then
+            echo "::error::Unable to resolve the immutable digest for $image"
+            exit 1
+          fi
+
+          echo "reference=$reference" >> "$GITHUB_OUTPUT"
+          echo "Testing immutable image: $reference"
+
+      - name: Validate latest image and result handling
+        env:
+          IMAGE: ${{ steps.image.outputs.reference }}
+        run: |
+          docker run --rm --ipc=host \
+            -e BASE_URL -e COMPANY_CODE -e AOA_USERNAME -e AOA_PASSWORD \
+            -e AOA_LAT -e AOA_LON -e TZ -e LOCALE -e LOG_LEVEL \
+            "$IMAGE" npm run test:list
+          docker run --rm --ipc=host \
+            -e BASE_URL -e COMPANY_CODE -e AOA_USERNAME -e AOA_PASSWORD \
+            -e AOA_LAT -e AOA_LON -e TZ -e LOCALE -e LOG_LEVEL \
+            "$IMAGE" npm run test:result
+
+      - name: Run login and safe Smoke with latest image
+        if: inputs.send_smoke_notification != true
+        env:
+          IMAGE: ${{ steps.image.outputs.reference }}
+        run: |
+          mkdir -p test-results playwright-report
+          docker run --rm --ipc=host \
+            -e BASE_URL -e COMPANY_CODE -e AOA_USERNAME -e AOA_PASSWORD \
+            -e AOA_LAT -e AOA_LON -e TZ -e LOCALE -e LOG_LEVEL \
+            -v "$GITHUB_WORKSPACE/test-results:/app/test-results" \
+            -v "$GITHUB_WORKSPACE/playwright-report:/app/playwright-report" \
+            "$IMAGE" npm run test:smoke
+
+      - name: Run login and Smoke with text and screenshot notification
+        if: inputs.send_smoke_notification == true
+        env:
+          IMAGE: ${{ steps.image.outputs.reference }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
+          LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
+        run: |
+          channels=()
+
+          if [ -n "${DISCORD_WEBHOOK_URL:-}" ]; then
+            channels+=("Discord")
+          fi
+
+          if [ -n "${LINE_CHANNEL_ACCESS_TOKEN:-}" ] || [ -n "${LINE_USER_ID:-}" ]; then
+            if [ -z "${LINE_CHANNEL_ACCESS_TOKEN:-}" ] || [ -z "${LINE_USER_ID:-}" ]; then
+              echo "::error::LINE notification requires both LINE_CHANNEL_ACCESS_TOKEN and LINE_USER_ID"
+              exit 1
+            fi
+            channels+=("LINE")
+          fi
+
+          if [ "${#channels[@]}" -eq 0 ]; then
+            echo "::error::Smoke notification requested, but no complete Discord or LINE Repository Secrets are configured"
+            exit 1
+          fi
+
+          if [ -n "${LINE_CHANNEL_ACCESS_TOKEN:-}" ] && [ -z "${DISCORD_WEBHOOK_URL:-}" ]; then
+            echo "::error::Smoke screenshot delivery to LINE also requires DISCORD_WEBHOOK_URL for temporary image hosting"
+            exit 1
+          fi
+
+          echo "Smoke notification channels: ${channels[*]}"
+          mkdir -p test-results playwright-report
+          docker run --rm --ipc=host \
+            -e BASE_URL -e COMPANY_CODE -e AOA_USERNAME -e AOA_PASSWORD \
+            -e AOA_LAT -e AOA_LON -e TZ -e LOCALE -e LOG_LEVEL \
+            -e DISCORD_WEBHOOK_URL -e LINE_CHANNEL_ACCESS_TOKEN -e LINE_USER_ID \
+            -v "$GITHUB_WORKSPACE/test-results:/app/test-results" \
+            -v "$GITHUB_WORKSPACE/playwright-report:/app/playwright-report" \
+            "$IMAGE" npm run smoke:notify
+
+      - name: Upload failed Smoke evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-latest-results-${{ github.run_number }}
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7

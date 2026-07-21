@@ -177,11 +177,12 @@ export async function notifyDiscord(opts: NotifyOpts) {
     try {
         // 如果已有 imageUrl，只發送文字訊息（包含圖片連結）
         if (opts.imageUrl) {
-            await makeRequest(url, {
+            const response = await makeRequest(url, {
                 method: 'POST',
                 headers: { 'content-type': 'application/json' },
                 body: JSON.stringify(payload),
             });
+            assertSuccessfulResponse('Discord webhook', response.status);
             log.notifySuccess('Discord', 'Discord');
             return;
         }
@@ -226,13 +227,14 @@ export async function notifyDiscord(opts: NotifyOpts) {
                     Buffer.from(`\r\n--${boundary}--\r\n`)
                 ]);
 
-                await makeRequest(url, {
+                const response = await makeRequest(url, {
                     method: 'POST',
                     headers: {
                         'Content-Type': `multipart/form-data; boundary=${boundary}`,
                     },
                     body: formData,
                 });
+                assertSuccessfulResponse('Discord webhook', response.status);
                 log.notifySuccess('Discord', 'Discord');
                 return; // 成功送出就結束
             }

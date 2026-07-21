@@ -8,11 +8,14 @@
 
 1. Fork 此專案，在 Fork 的 **Actions** 頁啟用 workflows。
 2. 到 **Settings → Secrets and variables → Actions → Repository secrets** 建立下表六個必填 Secrets。
-3. 到 **Actions → Build & Smoke Test → Run workflow** 手動執行一次；設定通知 Secrets 時保留「發送 Smoke 成功通知」為啟用。
+3. 到 **Actions → Build & Promote Image → Run workflow** 手動執行一次。
 4. 確認所有 jobs 通過，且 Fork 自己的 GHCR 已產生 `runner:latest`。
-5. 到 **Actions → Production Attendance → Run workflow**，選擇 `checkin` 或 `checkout`。
+5. 到 **Actions → Smoke Latest Image → Run workflow** 驗證目前的 `latest`；通知選項預設啟用。
+6. 到 **Actions → Production Attendance → Run workflow**，選擇 `checkin` 或 `checkout`。
 
-`Build & Smoke Test` 只會登入並檢查頁面，不會點擊簽到／簽退。手動執行時，通知選項預設啟用：會把完整設定的 Discord／LINE Secrets 傳給 Smoke，並在所有 Smoke 通過後發送摘要；通知 API 拒絕或失敗會讓 run 失敗。`main` push 與 PR 不發通知。第一次 Fork 必須手動執行它，正式流程才有可用的 `latest` image。
+`Build & Promote Image` 建置候選 SHA image，以該 image 登入並安全檢查頁面，通過後才更新 `latest`；不點擊簽到／簽退，也不發通知。第一次 Fork 必須手動執行它，正式流程才有可用的 `latest`。
+
+`Smoke Latest Image` 不 checkout、不建置、不推送 image。它只拉取一次現有 `latest`、固定其 digest，再執行載入檢查、結果判斷與安全 Smoke。通知預設啟用，會發送成功摘要文字與一張 Smoke 截圖；通知或圖片 API 失敗會讓 run 失敗，但不會改動 `latest`。
 
 ## 必填 Repository Secrets
 
@@ -33,6 +36,8 @@
 | `LINE_CHANNEL_ACCESS_TOKEN` | LINE Messaging API token |
 | `LINE_USER_ID` | LINE 通知對象 |
 
+Smoke 截圖必須透過 Discord webhook 上傳；若同時啟用 LINE，LINE 會使用該圖片的 Discord CDN URL。因此要驗證圖片通知時必須設定 `DISCORD_WEBHOOK_URL`，LINE 的兩個 Secrets 則維持選填。
+
 `TZ=Asia/Taipei`、`LOCALE=zh-TW`、`LOG_LEVEL=INFO` 有安全預設。正式 workflow 的日誌等級可在手動執行時選擇。
 
 ## 執行流程
@@ -43,10 +48,11 @@ flowchart LR
     B --> C[Login + safe Smoke]
     C -->|pass| D[Promote same image to latest]
     C -->|fail or cancel| E[Keep existing latest]
-    D --> F[Manual or scheduled attendance]
+    D --> F[Manual Smoke pins latest digest]
+    F --> G[Manual or scheduled attendance]
 ```
 
-每次 `main` push 或手動執行會建立 `runner:sha-<commit>`。只有該候選 image 完成載入檢查、結果判斷測試與 Smoke 後，同一 image 才會被標記為 `latest`；若手動啟用通知，通知摘要也必須成功送出。失敗或取消不會把未驗證版本推進為 `latest`。
+每次 `main` push 或手動執行 `Build & Promote Image` 都會建立 `runner:sha-<commit>`。只有該候選 image 完成載入檢查、結果判斷測試與安全 Smoke 後，同一 image 才會被標記為 `latest`。建置失敗或取消不會把未驗證版本推進為 `latest`；`Smoke Latest Image` 的成功、失敗或取消也都不會改動 image。
 
 Pull request 沒有 Repository Secrets，因此只建置本機 image 並執行無外部副作用的載入檢查；不登入 AOA，也不推送 GHCR。
 
@@ -62,9 +68,9 @@ npm ci
 | 命令 | 外部副作用 | 說明 |
 | --- | --- | --- |
 | `npm run test:list` | 無 | 載入設定並列出測試 |
-| `npm run test:result` | 無 | 本機模擬四種結果，驗證只 click 一次 |
+| `npm run test:result` | 無 | 驗證四種打卡結果、單次 click 與 Smoke 圖片傳遞 |
 | `npm test` / `npm run test:smoke` | 登入；不打卡、不通知 | 檢查登入與出勤頁 UI |
-| `npm run smoke:notify` | 登入並**發送訊息**；不打卡 | Smoke 全部成功後發送一則摘要 |
+| `npm run smoke:notify` | 登入並**發送訊息與圖片**；不打卡 | Smoke 全部成功後發送摘要與一張截圖；需要 Discord webhook |
 | `npm run notify:test` | **會發送訊息** | 手動驗證 Discord／LINE |
 | `npm run attendance:checkin` | **會真實簽到一次** | 不自動重按 |
 | `npm run attendance:checkout` | **會真實簽退一次** | 不自動重按 |

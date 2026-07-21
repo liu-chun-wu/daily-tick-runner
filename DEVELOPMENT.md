@@ -35,10 +35,10 @@ AOA_LON=0
 | 命令 | 安全層級 | 用途 |
 | --- | --- | --- |
 | `npm run test:list` | 無外部操作 | 驗證設定與測試載入 |
-| `npm run test:result` | 無外部操作 | 模擬結果與單次 click |
+| `npm run test:result` | 無外部操作 | 模擬結果、單次 click 與 Smoke 圖片傳遞 |
 | `npm test` | 登入，不打卡 | 安全 Smoke |
 | `npm run test:smoke` | 登入，不打卡 | 與 `npm test` 相同 |
-| `npm run smoke:notify` | 登入並發通知，不打卡 | 全部 Smoke 成功後發一則摘要 |
+| `npm run smoke:notify` | 登入並發送文字與圖片，不打卡 | 全部 Smoke 成功後發送摘要與一張截圖；需要 Discord webhook |
 | `npm run test:setup` | 登入，不打卡 | 只建立 auth state |
 | `npm run notify:test` | 會發送訊息 | 明確測試通知 API |
 | `npm run attendance:checkin` | 會真實簽到 | 一次 click、無自動 retry |
@@ -48,7 +48,7 @@ AOA_LON=0
 
 不要建立「跑全部 project」的便利命令，因為它很容易意外包含真實打卡或通知。
 
-`smoke:notify` 是明確的手動 opt-in。`Build & Smoke Test` 的手動 dispatch 預設啟用此模式；push 與 PR 一律不發通知。沒有完整通知設定、通知 API 失敗、Smoke 本身失敗或 timeout 時，通知驗收會失敗且不推進 `latest`。
+`smoke:notify` 是明確的手動 opt-in，只由 `Smoke Latest Image` 的通知 step 使用。它從成功的 `@smoke` 測試附件選取一張 PNG，將摘要與圖片送至 Discord；有完整 LINE Secrets 時，再以同一 Discord CDN URL 傳送 LINE 文字與圖片。缺少 Discord webhook、截圖或通知 API 失敗時驗收會失敗，但不會改動 `latest`。push、PR 與 `Build & Promote Image` 一律不發通知。
 
 ## 結果判斷測試
 
@@ -100,7 +100,9 @@ Pull request workflow 不會收到 Fork Repository Secrets，所以只能：
 - 以假值載入 Playwright 設定並執行 `test:list`。
 - 不登入目標、不呼叫通知、不寫 GHCR。
 
-`main` push 與手動 dispatch 才會建置 SHA image、執行整合 Smoke，成功後推進 `latest`。修改文件也會觸發完整流程。
+`main` push 與手動執行 `Build & Promote Image` 才會建置 SHA image、執行整合 Smoke，成功後推進 `latest`。修改文件也會觸發完整建置流程。
+
+`Smoke Latest Image` 只供手動執行：拉取一次 `latest`、固定其 digest，再執行載入檢查、結果測試、安全 Smoke 與選用通知。它沒有 package 寫入權限，也不 checkout 或建置。
 
 提交前建議執行：
 

@@ -21,7 +21,7 @@ npm run test:result
 
 `npm test` and `npm run test:smoke` do not click attendance or send notifications, but they do log into the configured target and therefore require an authorized environment.
 
-`npm run smoke:notify` is an explicit side-effecting command. It is permitted only in the manually dispatched `Build & Smoke Test` notification step; pushes and pull requests must never invoke it. It sends one summary only after the safe Smoke suite passes, and notification failure must fail that manual validation.
+`npm run smoke:notify` is an explicit side-effecting command. It is permitted only in the manually dispatched `Smoke Latest Image` notification step; pushes, pull requests, and `Build & Promote Image` must never invoke it. It sends a summary and one successful Smoke screenshot only after the safe suite passes. Discord is required for the image upload; configured LINE delivery reuses the returned Discord CDN URL. Missing screenshots or notification failures must fail that manual validation without changing `latest`.
 
 ## Runtime contract
 
@@ -53,7 +53,7 @@ Maintain success, failure, unknown-title, and timeout coverage in `attendance-re
 
 ## Image lifecycle
 
-`Build & Smoke Test` must:
+`Build & Promote Image` must:
 
 1. Build and push the Fork-owned `runner:sha-<commit>`.
 2. Run `test:list`, result tests, login, and safe Smoke using that exact image.
@@ -61,7 +61,9 @@ Maintain success, failure, unknown-title, and timeout coverage in `attendance-re
 
 Cancellation or failure must leave the existing `latest` unchanged. PRs have no Secrets: they only build locally and run `test:list`, with no target login and no GHCR push.
 
-Image names must be derived from lower-case `github.repository`; authentication uses the repository `GITHUB_TOKEN`. Production pulls `latest` and must not checkout code or install dependencies.
+`Smoke Latest Image` must pull `latest` once, pin its digest for every validation step, and have no image build or package write path. Its success, failure, or cancellation must never change `latest`.
+
+Image names must be derived from lower-case `github.repository`; authentication uses the repository `GITHUB_TOKEN`. Smoke Latest and Production pull `latest` and must not checkout code or install dependencies.
 
 ## Versions and files
 

@@ -18,7 +18,7 @@ export async function notifyLine(opts: NotifyOpts) {
     }
 
     const url = 'https://api.line.me/v2/bot/message/push';
-    const hasImage = !!(opts.screenshotBuffer || opts.screenshotPath);
+    const hasImage = !!(opts.imageUrl || opts.screenshotBuffer || opts.screenshotPath);
     log.notifyStart('LINE', 'LINE', hasImage);
 
     try {
@@ -86,7 +86,7 @@ export async function notifyLine(opts: NotifyOpts) {
         // 2) 如果已有圖片 URL，直接使用
         if (opts.imageUrl) {
             log.info('LINE', '使用已有的圖片 URL，正在發送 LINE 圖片訊息...');
-            await fetch(url, {
+            const imageResponse = await fetch(url, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -101,6 +101,10 @@ export async function notifyLine(opts: NotifyOpts) {
                     }]
                 })
             });
+            if (!imageResponse.ok) {
+                const errorText = await imageResponse.text();
+                throw new Error(`LINE image API failed (${imageResponse.status}): ${errorText}`);
+            }
             log.info('LINE', 'LINE 圖片訊息發送成功');
             log.notifySuccess('LINE', 'LINE');
             return;
@@ -135,7 +139,7 @@ export async function notifyLine(opts: NotifyOpts) {
                     
                     log.info('LINE', '圖片上傳成功，正在發送 LINE 圖片訊息...');
                     // 用 LINE 發 image（兩個 URL 都要是 HTTPS）
-                    await fetch(url, {
+                    const imageResponse = await fetch(url, {
                         method: 'POST',
                         headers: {
                             'Authorization': `Bearer ${token}`,
@@ -150,10 +154,15 @@ export async function notifyLine(opts: NotifyOpts) {
                             }]
                         })
                     });
+                    if (!imageResponse.ok) {
+                        const errorText = await imageResponse.text();
+                        throw new Error(`LINE image API failed (${imageResponse.status}): ${errorText}`);
+                    }
                     
                     log.info('LINE', 'LINE 圖片訊息發送成功');
                 } catch (e) {
                     log.warn('LINE', '圖片上傳或發送失敗，僅發送文字訊息', e);
+                    if (opts.failOnError) throw e;
                 }
             }
         } else if (hasBuffer || hasPath) {

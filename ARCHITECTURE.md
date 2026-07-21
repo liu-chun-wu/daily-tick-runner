@@ -14,8 +14,10 @@ Daily Tick Runner 是單一 Node.js／Playwright application，由 GitHub Action
 | `tests/check/*.smoke.spec.ts` | 登入後確認簽到／簽退 UI，不 click |
 | `tests/check/*.click.spec.ts` | 使用者明確要求時執行一次真實操作 |
 | `tests/check/attendance-result.spec.ts` | 本機模擬成功、失敗、未知與 timeout |
+| `tests/check/smoke-notify-reporter.spec.ts` | 無網路驗證 Smoke attachment 會傳給 Discord／LINE |
 | `docker/Dockerfile` | Node 24+、Playwright 1.61.0 與 Chromium 執行環境 |
 | `ci.yml` | 建置候選、Smoke、推進 stable image |
+| `smoke-latest.yml` | 固定 stable image digest，執行手動 Smoke 與選用通知 |
 | `production-schedule.yml` | 以 stable image 手動或選用排程執行 |
 
 ## Image 與執行資料流
@@ -27,7 +29,8 @@ flowchart TD
     L --> M[Login + Smoke]
     M -->|pass| P[Tag same digest as latest]
     M -->|fail/cancel| K[Keep old latest]
-    P --> R[Production Attendance pulls latest]
+    P --> V[Manual Smoke pins latest digest]
+    V --> R[Production Attendance pulls latest]
     R --> A[Login via setup dependency]
     A --> C[One checkin or checkout click]
     C --> O{Alert within 15 s}
@@ -43,7 +46,7 @@ Image 名稱在 workflow runtime 從小寫的 `github.repository` 產生，所�
 - `setup`：驗證設定、登入並寫入 `playwright/.auth/state.json`。
 - `chromium-smoke`：依賴 `setup`，只執行標記 `@smoke` 的安全檢查。
 - `chromium-click`：依賴 `setup`，只執行 `@click`，且 project retries 固定為 0。
-- `result`：使用本機 HTML 模擬結果，不登入外部服務。
+- `result`：使用本機 HTML 模擬打卡結果，並以測試替身驗證圖片通知；不登入外部服務。
 - `notify`：只在明確執行 `npm run notify:test` 時測試通知 API。
 
 全域 retry 只服務安全測試。正式 workflow 沒有外層 retry action，真實 click project 也沒有 Playwright retry，因此單次 run 不會因失敗或 timeout 自動再打卡。
@@ -64,4 +67,4 @@ type AttendanceResult =
 
 必要值只有六個：`BASE_URL`、`COMPANY_CODE`、`AOA_USERNAME`、`AOA_PASSWORD`、`AOA_LAT`、`AOA_LON`。本機由 `.env` 注入，GitHub 由 Repository Secrets 注入。`.dockerignore` 排除 `.env*`（保留範例）、authentication state、截圖與測試產物，這些資料不會成為 image layer。
 
-通知設定為選用。`main` push 的 Smoke 不接收通知 Secrets，也不呼叫通知 API；手動 dispatch 可明確啟用通知驗收，僅該 step 接收 Secrets，且 Discord／LINE API 失敗會讓 Smoke 失敗。Production 只有在結果成功時呼叫 best-effort 成功通知。
+通知設定為選用。`main` push 與 Build workflow 的 Smoke 不接收通知 Secrets，也不呼叫通知 API；`Smoke Latest Image` 可明確啟用通知驗收，僅該 step 接收 Secrets。reporter 從成功的 Smoke attachment 取得一張 PNG，將摘要與圖片傳給 Discord，再以該 CDN URL 傳給已設定的 LINE；截圖缺少或任一通知 API 失敗都會使驗收失敗，但無法改動 image。Production 只有在結果成功時呼叫 best-effort 成功通知。

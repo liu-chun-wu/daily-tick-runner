@@ -1,6 +1,6 @@
 # 疑難排解
 
-## Build & Smoke Test 顯示缺少 Secrets
+## Workflow 顯示缺少 Secrets
 
 確認名稱完全一致：
 
@@ -25,7 +25,7 @@ npm run test:list
 
 ## Production 找不到 runner:latest
 
-Fork 第一次使用時，先手動執行 **Build & Smoke Test**。只有候選 SHA image 通過所有測試後才會建立或更新 `latest`。
+Fork 第一次使用時，先手動執行 **Build & Promote Image**。只有候選 SHA image 通過所有測試後才會建立或更新 `latest`；之後才能執行 **Smoke Latest Image** 或正式打卡。
 
 也要確認 repository 的 **Actions → General → Workflow permissions** 沒有限制 package 操作，以及 GHCR package 允許此 repository 存取。
 
@@ -93,7 +93,7 @@ docker run --rm daily-tick-runner:verify npx playwright --version
 
 ## Smoke 成功但沒有測試通知
 
-`npm test` 與 `npm run test:smoke` 本機預設不發通知。GitHub 的手動 **Build & Smoke Test** 預設會啟用通知驗收：確認 `DISCORD_WEBHOOK_URL`，或同時設定 `LINE_CHANNEL_ACCESS_TOKEN` 與 `LINE_USER_ID`，再保留通知選項為啟用。push 與 PR 不會發送通知。
+`npm test` 與 `npm run test:smoke` 本機預設不發通知。GitHub 的手動 **Smoke Latest Image** 預設啟用通知驗收：必須設定 `DISCORD_WEBHOOK_URL` 才能傳送文字與 PNG；要同時傳送 LINE，再成對設定 `LINE_CHANNEL_ACCESS_TOKEN` 與 `LINE_USER_ID`。Build、push 與 PR 不會發送通知。
 
 ```bash
 npm run smoke:notify
@@ -107,7 +107,7 @@ npm run notify:test
 
 此命令會真的發送訊息。
 
-`smoke:notify` 沒有完整通知平台設定時會失敗；Smoke 失敗時不會發送成功摘要。GitHub 手動驗收中若通知 API 回傳錯誤或 LINE 額度耗盡，也會失敗並保持既有 `latest` image。
+`smoke:notify` 找不到成功的 Smoke PNG、缺少 Discord webhook 或通知 API 回傳錯誤時會失敗；Smoke 本身失敗時不會發送成功摘要。LINE 圖片使用 Discord 上傳後的 CDN URL，LINE 額度耗盡或圖片 API 失敗也會讓手動驗收失敗。上述情況都不會改動既有 `latest` image。
 
 ## Docker Compose 找不到 .env
 

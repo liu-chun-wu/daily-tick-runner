@@ -24,7 +24,7 @@ Discord 與 LINE 設定也是 Secrets，但為選填。不要使用 GitHub Varia
 Workflows 使用同一 repository 自動提供的 `GITHUB_TOKEN`：
 
 - Build 只有 `packages: write` 與 `contents: read`。
-- Smoke 與 Production 只有 `packages: read` 與 `contents: read`。
+- Candidate Smoke、Smoke Latest 與 Production 只有 `packages: read` 與 `contents: read`。
 - 不需要建立長效 PAT。
 
 Image 名稱由 Fork 的 `github.repository` 動態產生。若 GHCR package 權限被手動改成繼承以外的設定，應確認只有預期 repository 能讀寫。
@@ -71,7 +71,7 @@ Fork PR 不會取得 Repository Secrets。PR job 只能用假值建置並執行 
 
 ## 通知
 
-通知是選用且非打卡結果的唯一證據。手動 `Build & Smoke Test` 的通知驗收只把 Secrets 注入該 step，並要求通知 API 成功；push 與 PR 不接收通知 Secrets。正式打卡的成功通知仍為 best effort，通知失敗不應觸發第二次打卡。Discord workflow-failure 通知也不會覆蓋原始失敗原因。
+通知是選用且非打卡結果的唯一證據。手動 `Smoke Latest Image` 的通知驗收只把 Secrets 注入通知 step，並要求摘要文字與一張成功 Smoke 截圖都送達；push、PR 與 Build workflow 不接收通知 Secrets。圖片先上傳至設定的 Discord webhook，LINE 使用該 Discord CDN URL，因此截圖可能包含的內部資訊會同時進入所設定的平台。正式打卡的成功通知仍為 best effort，通知失敗不應觸發第二次打卡。Discord workflow-failure 通知也不會覆蓋原始失敗原因。
 
 ## 通報
 
