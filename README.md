@@ -76,8 +76,8 @@
 
 | 變數名稱 | 說明 | 範例 |
 |---------|------|------|
-| `BASE_URL` | AOA 系統網址 | `https://erpline.aoacloud.com.tw/` |
-| `COMPANY_CODE` | 公司代碼 | `CYBERBIZ` |
+| `BASE_URL` | AOA 系統網址 | `XXX` |
+| `COMPANY_CODE` | 公司代碼 | `XXX` |
 | `AOA_USERNAME` | 登入帳號 | `your.email@company.com` |
 | `AOA_PASSWORD` | 登入密碼 | `your_password` |
 | `AOA_LAT` | GPS 緯度 | `25.080869` |
