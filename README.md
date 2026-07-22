@@ -17,6 +17,18 @@
 
 `Smoke Latest Image` 不 checkout、不建置、不推送 image。它只拉取一次現有 `latest`、固定其 digest，再執行載入檢查、結果判斷與安全 Smoke。通知預設啟用，會發送成功摘要文字與一張 Smoke 截圖；通知或圖片 API 失敗會讓 run 失敗，但不會改動 `latest`。
 
+## 通知效果
+
+`Smoke Latest Image` 通過後，會將成功摘要與頁面截圖發送至已設定的通知管道；這個安全 Smoke 不會點擊簽到或簽退。
+
+### Discord
+
+![Discord Smoke 通知範例](docs/assets/discord-notification-demo.png)
+
+### LINE
+
+![LINE Smoke 通知範例](docs/assets/line-notification-demo.png)
+
 ## 必填 Repository Secrets
 
 | Secret | 用途 | 範例格式 |
