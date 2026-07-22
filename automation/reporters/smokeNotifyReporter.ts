@@ -32,6 +32,11 @@ export interface SmokeNotifyDependencies {
     sendLine: (options: NotifyOpts) => Promise<void>;
 }
 
+export interface SmokeNotifyReporterOptions {
+    dependencies?: SmokeNotifyDependencies;
+    [key: string]: unknown;
+}
+
 const defaultDependencies: SmokeNotifyDependencies = {
     getConfig: () => ({
         discordWebhookUrl: env.discordWebhookUrl,
@@ -47,33 +52,56 @@ const defaultDependencies: SmokeNotifyDependencies = {
 export class SmokeNotifyReporter implements Reporter {
     private readonly smokeResults = new Map<string, TestResult['status']>();
     private readonly smokeScreenshots = new Map<string, SmokeScreenshot>();
+    private readonly dependencies: SmokeNotifyDependencies;
+    private callbackError?: Error;
 
-    constructor(private readonly dependencies = defaultDependencies) {}
+    constructor(options: SmokeNotifyReporterOptions = {}) {
+        this.dependencies = options.dependencies ?? defaultDependencies;
+    }
 
     printsToStdio() {
         return false;
     }
 
     onTestEnd(test: TestCase, result: TestResult) {
-        if (test.tags.includes('@smoke')) {
-            this.smokeResults.set(test.id, result.status);
+        try {
+            if (test.tags.includes('@smoke')) {
+                this.smokeResults.set(test.id, result.status);
 
-            const screenshot = result.attachments.find(attachment =>
-                attachment.contentType === 'image/png'
-                && attachment.name.includes('smoke')
-                && Boolean(attachment.body || attachment.path)
-            );
+                const screenshot = result.attachments.find(attachment =>
+                    attachment.contentType === 'image/png'
+                    && attachment.name.includes('smoke')
+                    && Boolean(attachment.body || attachment.path)
+                );
 
-            if (result.status === 'passed' && screenshot) {
-                this.smokeScreenshots.set(test.id, screenshot);
+                if (result.status === 'passed' && screenshot) {
+                    this.smokeScreenshots.set(test.id, screenshot);
+                }
             }
+        } catch (error) {
+            this.callbackError = error instanceof Error ? error : new Error(String(error));
+            console.error(`[SmokeNotify] 收集 Smoke 結果失敗：${this.callbackError.message}`);
         }
     }
 
     async onEnd(result: FullResult) {
+        try {
+            return await this.finish(result);
+        } catch (error) {
+            const detail = error instanceof Error ? error.message : String(error);
+            console.error(`[SmokeNotify] Smoke 通知驗證失敗：${detail}`);
+            return { status: 'failed' as const };
+        }
+    }
+
+    private async finish(result: FullResult) {
         if (result.status !== 'passed') {
             console.log('[SmokeNotify] Smoke 未通過，不發送成功通知。');
             return;
+        }
+
+        if (this.callbackError) {
+            throw this.callbackError;
         }
 
         const passed = [...this.smokeResults.values()].filter(status => status === 'passed').length;

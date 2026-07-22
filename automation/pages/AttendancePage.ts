@@ -1,4 +1,4 @@
-import { Page, expect } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 
 export type AttendanceResult =
     | { status: 'success'; title: '打卡成功'; detail?: string }
@@ -8,6 +8,11 @@ export type AttendanceAction = 'checkin' | 'checkout';
 
 export class AttendancePage {
     constructor(private page: Page) { }
+
+    private attendanceButton(action: AttendanceAction): Locator {
+        const name = action === 'checkin' ? '簽到' : '簽退';
+        return this.page.getByRole('button', { name });
+    }
 
     async goto() {
         // 依賴 config 的 baseURL，這裡的 '/' 會展開成你的 BASE_URL
@@ -28,8 +33,8 @@ export class AttendancePage {
         await this.page.waitForLoadState('networkidle');
         
         // 到頁面後，簽到/簽退按鈕都應可見（使用 getByRole('button', {name})）。
-        await expect(this.page.getByRole('button', { name: '簽到' })).toBeVisible({ timeout: 15000 });
-        await expect(this.page.getByRole('button', { name: '簽退' })).toBeVisible({ timeout: 15000 });
+        await expect(this.attendanceButton('checkin')).toBeVisible({ timeout: 15000 });
+        await expect(this.attendanceButton('checkout')).toBeVisible({ timeout: 15000 });
     }
 
     async checkIn(resultTimeout = 15000): Promise<AttendanceResult> {
@@ -42,7 +47,11 @@ export class AttendancePage {
 
     private async performAttendance(action: AttendanceAction, resultTimeout: number): Promise<AttendanceResult> {
         const buttonName = action === 'checkin' ? '簽到' : '簽退';
-        const button = this.page.getByRole('button', { name: buttonName, exact: true });
+        const button = this.attendanceButton(action);
+        const buttonCount = await button.count();
+        if (buttonCount !== 1) {
+            throw new Error(`Expected exactly one ${buttonName} button, found ${buttonCount}`);
+        }
         await expect(button).toBeEnabled({ timeout: 10000 });
 
         // 真實操作的唯一 click。結果失敗或逾時時，呼叫端不得自動重試。

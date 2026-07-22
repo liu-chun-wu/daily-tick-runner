@@ -3,8 +3,8 @@ import { AttendancePage } from '../../automation/pages/AttendancePage';
 
 async function renderAttendance(page: Page, title?: string, detail = '') {
     await page.setContent(`
-        <button type="button">簽到</button>
-        <button type="button">簽退</button>
+        <button type="button" aria-label="sunny 簽到">簽到</button>
+        <button type="button" aria-label="moon 簽退">簽退</button>
         <script>
             window.clickCount = 0;
             for (const button of document.querySelectorAll('button')) {
@@ -47,4 +47,22 @@ test('沒有結果時 timeout，且只點一次', { tag: '@result' }, async ({ p
     await renderAttendance(page);
     await expect(new AttendancePage(page).checkOut(50)).rejects.toThrow('Attendance result did not appear within 50ms');
     expect(await clickCount(page)).toBe(1);
+});
+
+test('多個符合的打卡按鈕會在 click 前失敗', { tag: '@result' }, async ({ page }) => {
+    await page.setContent(`
+        <button type="button" aria-label="sunny 簽到">簽到</button>
+        <button type="button" aria-label="backup 簽到">簽到</button>
+        <script>
+            window.clickCount = 0;
+            for (const button of document.querySelectorAll('button')) {
+                button.addEventListener('click', () => { window.clickCount += 1; });
+            }
+        </script>
+    `);
+
+    await expect(new AttendancePage(page).checkIn(100)).rejects.toThrow(
+        'Expected exactly one 簽到 button, found 2'
+    );
+    expect(await clickCount(page)).toBe(0);
 });
